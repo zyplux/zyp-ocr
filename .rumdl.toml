@@ -1,0 +1,6 @@
+[global]
+disable = ["MD013", "MD031","MD032", "MD033", "MD022"]
+exclude = ["skills/*/references/**"]
+
+[MD024]
+siblings-only = true

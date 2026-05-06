@@ -1,0 +1,37 @@
+# Totvibe-OCR — Decision Log (Historical)
+
+> **Warning:** This file is a chronological record of brainstorming decisions across plan-storm rounds 1–12. It contains **a lot of outdated and superseded ideas** (Postgres, pgmq, polling, single-laptop-only architecture, "v1 = local single-user", etc.) that no longer apply to the current plan. **Do not use this as a guide for implementation or current architecture.** It exists for history only — to understand *why* the current plan looks the way it does and what was considered and rejected along the way. The authoritative current plan is in [`totvibe-ocr.md`](./totvibe-ocr.md).
+
+- 2026-04-27: GLM-OCR chosen — markdown-native output, table/formula handling, small enough to self-host.
+- 2026-04-27: Audience for first release = the author; design for "small trusted circle later".
+- 2026-04-27: PDF profile = mostly scanned. No text-layer fast-path needed for v0.x.
+- 2026-04-27: Self-host via vLLM + podman. Verified 12 GB GPU is sufficient (model is 0.9B).
+- 2026-04-27: Use the official `glmocr` SDK with PP-DocLayoutV3. Verified the SDK can call a remote vLLM endpoint via `config.yaml`.
+- 2026-04-27: UX = server-side state, URL-addressable jobs, incremental rendering.
+- 2026-04-27: PP-DocLayoutV3 placement = GPU, sharing the card with vLLM.
+- 2026-04-27: RSC dropped from initial release; frontend = plain Vite + React 19 + jotai.
+- 2026-04-27: First release deploys nowhere — runs entirely on the laptop. *(Reversed in round 10 — see below.)*
+- 2026-04-27 (round 5): Two independent services that share only Postgres + S3, no direct calls. *(Replaced in round 10 — services now communicate via signed-token HTTP webhooks + blob store.)*
+- 2026-04-27 (round 5): Postgres added as a hard dependency for shared state + queue. *(Removed in round 10 — DO SQLite replaces it.)*
+- 2026-04-27 (round 5): Upload path = browser → TS server → S3 (MinIO/R2).
+- 2026-04-27 (round 5): Local S3 = MinIO container; cloud = R2.
+- 2026-04-27 (round 5): Routing = TanStack Router.
+- 2026-04-27 (round 5): Markdown rendering = react-markdown + remark-gfm + remark-math + rehype-katex.
+- 2026-04-27 (round 6): TS service backend = TanStack Start.
+- 2026-04-27 (round 6): Python worker = pure asyncio script, no HTTP server. *(Reversed in round 10 — pipeline now has a small FastAPI server because the DO calls it via webhook.)*
+- 2026-04-27 (round 6): Local dev = single `compose.yaml` for everything. *(Reshaped in round 10 — `wrangler dev` + podman MinIO + podman vLLM + uv-run pipeline replaces the 5-service compose.)*
+- 2026-04-27 (round 7): Queue = pgmq. *(Removed in round 10 — DO orchestrates submissions directly + alarm-based reconciliation.)*
+- 2026-04-27 (round 7): Frontend read path for finished pages = TS server proxies S3 reads. (Carried forward as Worker → blob-store proxy.)
+- 2026-04-27 (round 7): DB management split = `init.sql` for pgmq + Drizzle migrations for app tables. *(Replaced in round 10 — DO `migrate()` owns the SQLite schema; no Drizzle on Postgres because there's no Postgres.)*
+- 2026-04-27 (round 7): Containerization default = all five services in compose. *(Replaced in round 10 — four runnable pieces, only MinIO and vLLM are in podman.)*
+- 2026-04-27 (round 7): Defaults bundle accepted — ULID job IDs, 50 MB / 100 pages / 10 queued / 1 in-flight page, validation in both TS and DB `CHECK` constraints. (Carried forward; constraints now in DO SQLite.)
+- 2026-04-27 (round 8): Polling cadence = 1.5 s in flight, stop on terminal state; in-process LRU cache for per-page markdown; inline error UI; no first-release retry button; LISTEN/NOTIFY-style push deferred. *(Polling and LRU removed in round 10 — WebSocket fanout replaces both. Inline-error UI and "no retry button pre-v1" carried forward.)*
+- 2026-05-06 (round 9): Reviewed `plan/server-client-live-updates/do-sqlite-callbacks.md`. Initial disposition was to keep the original v1 unchanged and capture the proposal as a v2 Option B; superseded by round 10's pivot.
+- 2026-05-06 (round 10): **Major pivot — adopted the DO + SQLite + WebSocket + signed-token-pipeline-webhook architecture, single-user (singleton DO), with DO-per-user and auth deferred.** Postgres + pgmq are out entirely. **MinIO stays — it's the local mock for R2** (both the Worker and the Python pipeline talk to the same S3 endpoint, which miniflare's R2 emulation cannot serve to an external Python process). Confirmed motivations: *(a) eliminate managed Postgres — one fewer service to operate / pay for; (b) genuinely all-in on Cloudflare — Workers, R2, DO, Containers, Access — one vendor, one mental model.* The pipeline-callback shape forces the Python service to grow a small FastAPI server, reversing the round-6 "pure asyncio script, no HTTP server" decision. "Runs on the user's laptop" is no longer a hard requirement — the requirement is now "must run locally for development and end-to-end tests, with `wrangler dev` standing in for the production CF runtime"; cloud deployment is an explicit later milestone, not a "future" handwave.
+- 2026-05-06 (round 11): **Renumbered the version scheme.** What was being called "v1" is properly **v0.1** — the local walking skeleton is not production-ready. **v1** is reserved for the production-ready release: multi-user via DO-per-user, proper auth, pipeline on a cloud GPU host. v0.5 is the intermediate milestone (edge deployed to CF, pipeline still on laptop via tunnel, basic password gate). Rationale (user's framing): "We will only be production ready when multi-user is supported and that will be v1. Current is more like v0.1." This re-anchors expectations for the "non-goals (current scope)" list — v0.x non-goals are explicitly things v1 will need to address (auth, multi-user, cloud pipeline).
+- 2026-05-06 (round 12): Convergence pass — final v0.1 details locked.
+  - **Testing (v0.1)** = vitest + React Testing Library + jsdom for SPA tests; podman-up of MinIO + a **mock pipeline** (`pipeline_mock.py` or `pipeline.py --mock`) for the data layer; `wrangler dev` on the host as the runtime under test. Goal is an e2e framework skeleton with a few example tests, *not* exhaustive coverage. No Playwright in v0.1. The mock pipeline mirrors the real `/submit` surface and POSTs canned per-page callbacks after a configurable delay — keeps the test loop GPU-free.
+  - **v0.1 / v0.5 boundary stays sharp.** v0.1 = wrangler-dev-only, no CF deployment. v0.5 = first CF deploy.
+  - **Alarm reconcile** = configurable timeout + simple-fail in v0.1; smart status-poll reconcile in v0.5. Default timeout ~1 h in prod; overridable to seconds via env var for tests.
+  - **Pipeline concurrency** = single-worker default (one job at a time, in-memory queue) — matches v0.x's "1 in-flight page per job" cap; revisit if the queue gets long.
+  - **Markdown rendering** promoted from [PROPOSED] to [DECIDED] — no challenger raised across rounds, fits GLM-OCR's table+LaTeX output shape.
