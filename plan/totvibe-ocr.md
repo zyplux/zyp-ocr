@@ -118,15 +118,14 @@ flowchart LR
         VLLM["vLLM<br/>GLM-OCR · GPU"]
     end
 
-    Browser <-->|"HTTPS · server-fn calls"| TS
+    Browser <-->|"HTTPS<br/>server functions"| TS
 
-    TS -->|"1. stream PDF (PUT source.pdf)"| S3
-    TS <-->|"2. INSERT jobs + pgmq.send (atomic) · Drizzle SELECT"| DB
-    TS <-->|"3. proxy page reads (GET pages/n.md)"| S3
+    TS <-->|"PUT source.pdf<br/>GET pages/n.md"| S3
+    TS <-->|"INSERT + pgmq.send<br/>SELECT via Drizzle"| DB
 
-    Worker <-->|"read_with_poll · UPDATE · pgmq.delete"| DB
-    Worker <-->|"GET source.pdf · PUT pages/n.md"| S3
-    Worker -->|"OCR per page (OpenAI-compatible)"| VLLM
+    Worker <-->|"read_with_poll<br/>UPDATE · pgmq.delete"| DB
+    Worker <-->|"GET source.pdf<br/>PUT pages/n.md"| S3
+    Worker -->|"OCR per page<br/>OpenAI-compatible"| VLLM
 
     classDef storage fill:#e8f4f8,stroke:#0288d1,color:#000
     classDef gpu fill:#fff3e0,stroke:#f57c00,color:#000
