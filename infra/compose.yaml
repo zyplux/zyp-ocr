@@ -1,0 +1,114 @@
+# Base compose stack — image refs and network only.
+# Variants (dev, mock, test) layer overrides on top via explicit -f flags.
+
+name: totvibe
+
+networks:
+  totvibe:
+    driver: bridge
+
+volumes:
+  minio-data:
+  wrangler-state:
+  pipeline-state:
+  vllm-cache:
+
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Containerfile
+      target: dev
+    image: totvibe/web:dev
+    networks: [totvibe]
+    ports:
+      - "8787:8787"
+    environment:
+      PUBLIC_BASE: ${PUBLIC_BASE:-http://localhost:8787}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_BUCKET: ${S3_BUCKET:-totvibe}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-minioadmin}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-minioadmin}
+      PIPELINE_BASE: ${PIPELINE_BASE:-http://pipeline-api:8000}
+      CALLBACK_HMAC_SECRET: ${CALLBACK_HMAC_SECRET:-dev-only-hmac-secret-change-me}
+      RECONCILE_TIMEOUT_SECONDS: ${RECONCILE_TIMEOUT_SECONDS:-3600}
+    depends_on:
+      minio:
+        condition: service_healthy
+      pipeline-api:
+        condition: service_started
+
+  pipeline-api:
+    build:
+      context: ..
+      dockerfile: services/pipeline-api/Containerfile
+      target: dev
+    image: totvibe/pipeline-api:dev
+    networks: [totvibe]
+    ports:
+      - "8000:8000"
+    environment:
+      PUBLIC_BASE: ${PUBLIC_BASE:-http://web:8787}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_BUCKET: ${S3_BUCKET:-totvibe}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-minioadmin}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-minioadmin}
+      VLLM_BASE: ${VLLM_BASE:-http://vllm:8080}
+      VLLM_MODEL: ${VLLM_MODEL:-zai-org/GLM-OCR}
+      CALLBACK_HMAC_SECRET: ${CALLBACK_HMAC_SECRET:-dev-only-hmac-secret-change-me}
+    depends_on:
+      minio:
+        condition: service_healthy
+
+  minio:
+    image: docker.io/minio/minio:latest
+    networks: [totvibe]
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:-minioadmin}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  minio-init:
+    image: docker.io/minio/mc:latest
+    networks: [totvibe]
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+        mc alias set local http://minio:9000 ${S3_ACCESS_KEY_ID:-minioadmin} ${S3_SECRET_ACCESS_KEY:-minioadmin} &&
+        mc mb -p local/${S3_BUCKET:-totvibe} || true
+      "
+    restart: "no"
+
+  vllm:
+    image: docker.io/vllm/vllm-openai:v0.19.0-ubuntu2404
+    networks: [totvibe]
+    ports:
+      - "8080:8080"
+    command:
+      - "--model=zai-org/GLM-OCR"
+      - "--host=0.0.0.0"
+      - "--port=8080"
+      - "--speculative-config={\"method\":\"mtp\"}"
+    volumes:
+      - vllm-cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

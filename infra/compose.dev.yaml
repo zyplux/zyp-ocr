@@ -1,0 +1,39 @@
+# Dev override: bind-mount source for hot reload, keep dev targets.
+
+services:
+  web:
+    build:
+      target: dev
+    volumes:
+      - ../apps/web/src:/app/apps/web/src:Z
+      - ../apps/web/wrangler.jsonc:/app/apps/web/wrangler.jsonc:Z
+      - wrangler-state:/app/apps/web/.wrangler
+    command:
+      - "pnpm"
+      - "--filter"
+      - "@totvibe/web"
+      - "wrangler"
+      - "dev"
+      - "--ip"
+      - "0.0.0.0"
+      - "--port"
+      - "8787"
+
+  pipeline-api:
+    build:
+      target: dev
+    volumes:
+      - ../services/pipeline-api/src:/app/services/pipeline-api/src:Z
+      - pipeline-state:/var/lib/pipeline
+    command:
+      - "uv"
+      - "run"
+      - "--package"
+      - "pipeline-api"
+      - "uvicorn"
+      - "pipeline_api.app:app"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8000"
+      - "--reload"

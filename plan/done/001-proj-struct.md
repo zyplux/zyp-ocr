@@ -1,6 +1,6 @@
 # Totvibe-OCR — Project Structure Plan
 
-> **Status:** v0.1 implementation-ready — readiness 95%
+> **Status:** v0.1 scaffolded — readiness 100%
 > **Last updated:** 2026-05-06
 > **Walking skeleton:** A repo where `just install` syncs both lockfiles (uv + pnpm) on the host plus builds the app images, and `just dev` runs `podman compose -f infra/compose.yaml -f infra/compose.dev.yaml up` to bring up the TanStack Start Worker (wrangler dev in a container), the Python pipeline (uvicorn in a container), and stateful deps (MinIO + vLLM) — all under one supervisor. Variants (`dev`, `mock`, `test`, future `prod-like`) are compose override files. `scripts/` holds Python 3.14 PEP 723 helper scripts that run on the host via `uv run` for codegen and one-off ops.
 
@@ -15,7 +15,7 @@ Mixed TS/Python projects historically force a choice between two bad shapes: (a)
 - Makes the dev loop a single command that brings up everything together (no "did you start vLLM?" / "did you start the pipeline?" footguns).
 - Centralizes operational scripts (DB seed, schema codegen, container management, dev fixtures) without polluting either workspace.
 - Makes the cross-language contract (callback payloads) a tracked, codegened artifact, not folklore.
-- Survives growth: adding `apps/admin`, `packages/contracts`, `packages/pipeline-shared`, or a new compose variant later is mechanical.
+- Survives growth: adding `apps/admin`, `packages/contracts` (TS-shared), `services/pipeline-shared` (Python-shared), or a new compose variant later is mechanical.
 
 ## 3. Users & primary scenarios
 - Primary user: **the author**, working from a laptop with both `uv` and `pnpm` installed on the host, plus podman with the NVIDIA Container Toolkit. `just <recipe>` for everyday tasks. [DECIDED]
@@ -32,12 +32,12 @@ Mixed TS/Python projects historically force a choice between two bad shapes: (a)
 ## 4. Goals
 - **One root, two workspaces, one compose stack.** A virtual `pyproject.toml` at root for the uv workspace; a root `package.json` + `pnpm-workspace.yaml` for the pnpm workspace; a base `infra/compose.yaml` + override files for the dev/mock/test variants. They coexist; none owns the others. [DECIDED]
 - **`apps/*` + `packages/*` layout** for TS (TanStack Start app under `apps/`, future shared libs under `packages/`). [DECIDED]
-- **`packages/*` layout** for Python (pipeline service is `packages/pipeline-api`; future shared libs/services drop in alongside). [DECIDED]
+- **`services/*` layout** for Python (pipeline service is `services/pipeline-api`; future Python services and libs drop in alongside). Kept disjoint from `packages/*` so pnpm and uv globs never overlap. [DECIDED]
 - **Container-native dev loop.** All long-running services (web, pipeline-api, MinIO, vLLM) run in podman, orchestrated by compose. Variant compose files (`compose.dev.yaml`, `compose.mock.yaml`, future `compose.test.yaml`, future `compose.prod-like.yaml`) are merged on top of the base via explicit `-f` flags. [DECIDED]
-- **Containerfiles colocated with each package they build.** `apps/web/Containerfile` and `packages/pipeline-api/Containerfile` — multi-stage so dev/prod (and `mock` for pipeline-api) targets live in one file per package. `infra/` holds **only** compose files. [DECIDED]
+- **Containerfiles colocated with each package they build.** `apps/web/Containerfile` and `services/pipeline-api/Containerfile` — multi-stage so dev/prod (and `mock` for pipeline-api) targets live in one file per package. `infra/` holds **only** compose files. [DECIDED]
 - **Host runs only short-lived tooling.** Codegen, helper scripts, IDE/LSP type-check passes, and the test runners run on the host. The host has `pnpm`, `uv`, `node`, `python 3.14`, and `podman` installed; nothing more. [DECIDED]
 - **`scripts/` for PEP 723 helpers** — self-contained `# /// script` files, no workspace membership, no shared deps. Run on the **host** via `uv run scripts/<name>.py` (or `just <name>`). [DECIDED]
-- **Single root `justfile`** as the entry point for every common task. Child justfiles inside `apps/*` and `packages/*` allowed when local-only recipes accumulate; root recipes always callable from anywhere via `just <recipe>`. [DECIDED]
+- **Single root `justfile`** as the entry point for every common task. Child justfiles inside `apps/*`, `packages/*`, and `services/*` allowed when local-only recipes accumulate; root recipes always callable from anywhere via `just <recipe>`. [DECIDED]
 - **Single source of truth for cross-language contracts** — Pydantic models in the pipeline service, codegen to TS Zod schemas + inferred types via JSON Schema → quicktype. Generated file committed at `apps/web/src/contracts.ts`. [DECIDED]
 - **Lockfiles checked in, both at root.** `uv.lock` (root, single, covers all members) + `pnpm-lock.yaml` (root, single). [DECIDED]
 - **No top-level `src/`.** Every package owns its own `src/` (Python `src/<pkg>/...` layout; TS `src/...` per app). [DECIDED]
@@ -76,8 +76,8 @@ Mixed TS/Python projects historically force a choice between two bad shapes: (a)
 6. Helper scripts in `scripts/` run on the **host** as `uv run scripts/<name>.py` regardless of cwd; their PEP 723 metadata declares Python 3.14 + their own deps; they MUST NOT depend on workspace state. [DECIDED]
 7. `just <name>` recipes exist for at least: `install`, `dev`, `dev-mock`, `up`, `down`, `build`, `test`, `lint`, `format`, `typecheck`, `codegen`, `clean`. (`build` covers `podman compose build`.) [DECIDED]
 8. Cross-language contract types are codegened: Pydantic source-of-truth in `pipeline_api/schemas.py` → JSON Schema → Zod TS in `apps/web/src/contracts.ts`. `just codegen` runs the script; the generated file is committed. [DECIDED]
-9. Adding a second Python service: `mkdir packages/foo-svc`, `uv init`, add to `[tool.uv.workspace] members`, write `packages/foo-svc/Containerfile`, add a service entry to `infra/compose.yaml`. [DECIDED]
-10. Adding a second TS package: `mkdir packages/<name>`, `pnpm init`, add to `pnpm-workspace.yaml`. (No new compose entry unless it's a long-running service; if it is, add a colocated `Containerfile`.) [DECIDED]
+9. Adding a second Python service: `mkdir services/foo-svc`, `uv init`, the existing `[tool.uv.workspace] members = ["services/*"]` glob picks it up automatically, write `services/foo-svc/Containerfile`, add a service entry to `infra/compose.yaml`. [DECIDED]
+10. Adding a second TS package: `mkdir packages/<name>`, `pnpm init`, the existing `packages/*` glob in `pnpm-workspace.yaml` picks it up. (No new compose entry unless it's a long-running service; if it is, add a colocated `Containerfile`.) [DECIDED]
 11. Adding a new compose variant (e.g. `compose.staging.yaml`): drop the file in `infra/`, add a `just <variant>` recipe to the root justfile. [DECIDED]
 12. CI (when it lands post-v0.1) sees a single repo with two workspaces and a compose stack; `just ci` is the entry point. [PROPOSED — see §13]
 
@@ -128,10 +128,13 @@ totvibe-ocr/
 │       │   │   └── user-do.sql       # schema string colocated with the class
 │       │   ├── lib/                  # shared utils across SPA + Worker
 │       │   ├── client/               # SPA-only: TanStack DB collection, components
-│       │   └── contracts.ts          # GENERATED from packages/pipeline-api/src/pipeline_api/schemas.py
+│       │   └── contracts.ts          # GENERATED from services/pipeline-api/src/pipeline_api/schemas.py
 │       └── worker-configuration.d.ts # generated by `wrangler types`
 │
-└── packages/                         # Python workspace members (and future TS shared libs)
+├── packages/                         # TS shared libs only (pnpm workspace)
+│                                     # (empty in v0.1; first occupant will be `packages/contracts` if a 2nd TS pkg ever needs the codegened types)
+│
+└── services/                         # Python workspace members (uv workspace)
     └── pipeline-api/                 # FastAPI pipeline service
         ├── pyproject.toml            # name: pipeline-api
         ├── Containerfile             # multi-stage: dev (uvicorn --reload) · prod (uvicorn) · mock (--mock)
@@ -158,7 +161,7 @@ totvibe-ocr/
 - `AS dev` — copy source, expose 8787, `CMD ["pnpm", "wrangler", "dev", "--ip", "0.0.0.0"]`. Compose's `compose.dev.yaml` selects `target: dev` and bind-mounts `./apps/web/src` for hot reload.
 - `AS prod` — `pnpm build`, output the deployable Worker artifact. Used by future `compose.prod-like.yaml` and CI build.
 
-**Multi-stage Containerfile pattern (packages/pipeline-api/Containerfile, sketch in prose):**
+**Multi-stage Containerfile pattern (services/pipeline-api/Containerfile, sketch in prose):**
 
 - `FROM python:3.14-slim AS base` — install uv.
 - `AS deps` — copy `uv.lock` + workspace `pyproject.toml`s, run `uv sync --frozen --package pipeline-api`.
@@ -168,7 +171,7 @@ totvibe-ocr/
 
 **What's deliberately NOT in v0.1:**
 - No `packages/contracts` TS lib — `apps/web/src/contracts.ts` is enough until a 2nd TS package needs the same types.
-- No `packages/pipeline-shared` Python lib — `pipeline-api` and the mock share code intra-package via `mock.py`.
+- No `services/pipeline-shared` Python lib — `pipeline-api` and the mock share code intra-package via `mock.py`.
 - No CI config — comes after v0.1 manual proof.
 - No `compose.prod-like.yaml` — production deploys are CF Workers (no compose) until v1's GPU host lands.
 - No per-app justfiles — root justfile is enough at this size; split when local recipes accumulate.
@@ -186,13 +189,13 @@ flowchart TD
         S2["seed_minio.py"]
     end
 
-    subgraph TS["pnpm workspace (HOST install for IDE/LSP/tests)"]
+    subgraph TS["pnpm workspace · apps/* + packages/*"]
         Web["apps/web — @totvibe/web<br/>TanStack Start (Worker + DO + SPA)<br/>wrangler.jsonc · src/contracts.ts (generated)<br/>Containerfile (dev · prod targets)"]
         Cat[("pnpm catalog<br/>react · react-dom · vite · vitest · ...")]
     end
 
-    subgraph PY["uv workspace (HOST install for IDE/LSP/tests)"]
-        Pipe["packages/pipeline-api<br/>FastAPI · glmocr · paddle · aioboto3<br/>schemas.py — Pydantic SOURCE OF TRUTH<br/>Containerfile (dev · prod · mock targets)"]
+    subgraph PY["uv workspace · services/*"]
+        Pipe["services/pipeline-api<br/>FastAPI · glmocr · aioboto3<br/>schemas.py — Pydantic SOURCE OF TRUTH<br/>Containerfile (dev · prod · mock targets)"]
         Groups[("[dependency-groups]<br/>lint · type · test")]
     end
 
@@ -239,12 +242,12 @@ The codegen arrow is one-way: Python schemas → TS types (committed).
 - **TS package manager:** **pnpm 10.26.1**, pinned via `"packageManager": "pnpm@10.26.1"` in root `package.json` (corepack-enabled). Catalogs declared in `pnpm-workspace.yaml`. [DECIDED]
 - **Python package manager:** **uv** with `[tool.uv.workspace]` virtual root. PEP 735 `[dependency-groups]` for cross-cutting dev tooling at the root. [DECIDED]
 - **Workspace shape (TS):** `apps/*` + `packages/*`. [DECIDED]
-- **Workspace shape (Python):** `packages/*` only (services and libs share the directory; differentiated by `[project.scripts]` presence). [DECIDED]
+- **Workspace shape (Python):** `services/*` only (services and libs share the directory; differentiated by `[project.scripts]` presence). Disjoint from the TS `packages/*` glob so pnpm and uv can never disagree about who owns a directory. [DECIDED]
 - **Task runner:** `just` (root `justfile`, child `justfile`s allowed later). [DECIDED]
 - **Dev orchestration:** `podman compose -f infra/compose.yaml -f infra/compose.<variant>.yaml up`. Just delegates; podman is the supervisor. [DECIDED]
 - **Compose variant strategy:** base `compose.yaml` + per-variant override files (`compose.dev.yaml`, `compose.mock.yaml`, future `compose.test.yaml`, `compose.prod-like.yaml`). Explicit `-f` flags rather than the auto-loaded `compose.override.yaml`, for clarity in justfile recipes. [DECIDED]
-- **Containerfile placement:** **colocated** with each package (`apps/web/Containerfile`, `packages/pipeline-api/Containerfile`). One multi-stage Containerfile per package; compose `target:` selects the stage. `infra/` holds **only** compose files. [DECIDED]
-- **Mock pipeline:** **`--mock` flag inside `pipeline-api`**, implemented in `mock.py` and exposed via `__main__.py`. Built as the `mock` stage of `packages/pipeline-api/Containerfile`. No separate Python package, no separate Containerfile. [DECIDED]
+- **Containerfile placement:** **colocated** with each package (`apps/web/Containerfile`, `services/pipeline-api/Containerfile`). One multi-stage Containerfile per package; compose `target:` selects the stage. `infra/` holds **only** compose files. [DECIDED]
+- **Mock pipeline:** **`--mock` flag inside `pipeline-api`**, implemented in `mock.py` and exposed via `__main__.py`. Built as the `mock` stage of `services/pipeline-api/Containerfile`. No separate Python package, no separate Containerfile. [DECIDED]
 - **Helper scripts:** Python 3.14, PEP 723 inline deps, run on the **host** via `uv run scripts/<name>.py`. No shared deps; each script self-contained. [DECIDED]
 - **Container runtime:** podman + podman-compose. [DECIDED]
 - **Cross-language contract:** Pydantic v2 in `pipeline_api/schemas.py` → JSON Schema (via `model_json_schema()`) → TS Zod schemas + inferred types in `apps/web/src/contracts.ts`, generated by `scripts/export_schemas.py` (which calls quicktype or `json-schema-to-zod`). Generated file committed. [DECIDED]
@@ -261,19 +264,19 @@ The codegen arrow is one-way: Python schemas → TS types (committed).
 ## 11. Roadmap
 - **v0.1 (this plan):** layout above is enough for the v0.1 walking skeleton in `totvibe-ocr.md`. Single TS app, single Python service, root justfile, scripts/, infra/ with compose files, two colocated multi-stage Containerfiles.
 - **v0.5:** `compose.prod-like.yaml` for full-stack rehearsal before CF deploy. CI config (`.github/workflows/`) lands; `just ci` recipe materializes. `compose.test.yaml` if integration tests need a containerized fixture stack. Possibly a per-app justfile if `apps/web` accumulates >5 local recipes.
-- **v1:** likely `packages/pipeline-shared` Python lib if a second pipeline variant (cloud GPU host) is added alongside `pipeline-api`. The cloud-GPU pipeline gets its own colocated Containerfile and its own compose entry.
+- **v1:** likely `services/pipeline-shared` Python lib if a second pipeline variant (cloud GPU host) is added alongside `pipeline-api`. The cloud-GPU pipeline gets its own colocated Containerfile and its own compose entry.
 - **v2+:** if the TS workspace grows past ~5 packages or build-graph caching becomes a bottleneck, evaluate Turborepo or Moon. Until then, `pnpm -r` is enough.
 
 ## 12. Decisions log
 - **One repo, two workspaces, one compose stack, one justfile** (not Nx, not Bazel, not a polyglot meta-tool) — chosen for minimum tooling overhead at the v0.1 / v0.5 size; the layout is mechanical to grow from.
 - **TanStack Start = one TS package** — not split into Worker + SPA packages; the framework is one Vite build since v1.121.
 - **`scripts/` is for PEP 723 standalones, host-run** — clarified by user 2026-05-06; helper scripts must not depend on workspace state and never run inside the dev compose stack.
-- **`apps/*` + `packages/*` for TS, `packages/*` only for Python** — TS distinguishes deployable apps from libraries (Vite/CF specific concerns); Python is uniform until a clear distinction emerges.
+- **`apps/*` + `packages/*` for TS, `services/*` for Python (round-4 rename, post-scaffold 2026-05-06)** — initial round-3 decision had Python sharing `packages/*` with TS-shared libs, relying on each tool keying off its own manifest (`package.json` for pnpm, `pyproject.toml` for uv) to disambiguate. After scaffolding completed, a polyglot-monorepo research pass surfaced two issues: (a) **uv requires every dir matched by `[tool.uv.workspace] members` globs to contain `pyproject.toml`** — a future TS-only `packages/contracts` would error `uv lock` unless explicitly excluded, asymmetric with pnpm which silently tolerates Python-only dirs; (b) shared `packages/` is *tolerated but uncommon* in 2026 polyglot monorepos — no widely-cited public repo combines pnpm + uv under a single `packages/*` glob, and the language-segregated layout matches the more common convention (Julien Barbay's polyglot post; create-polyglot scaffolder; Nx + @nxlv/python). Cost during scaffolding was ~5 min: rename one directory + 6 path edits across `pyproject.toml`, `infra/compose*.yaml`, `services/pipeline-api/Containerfile`, `scripts/export_schemas.py`, `apps/web/src/contracts.ts`, `justfile`. Doing it now is much cheaper than after `packages/contracts` (TS-shared) and `services/pipeline-shared` (Python-shared) land.
 - **Lockfiles at root only** — both uv and pnpm produce a single workspace-wide lockfile; no per-package locks.
 - **Container-native dev (round-2 pivot, 2026-05-06):** `just dev` is `podman compose up`. Wrangler dev and uvicorn run **in containers**, not on the host. Variants via override files. Per-package Containerfiles are first-class. **Trade-off accepted:** wrangler dev in a container has bind-mount + hot-reload + miniflare-state friction (see §14); user prioritizes single-command dev start over native CF tooling ergonomics.
 - **pnpm 10.26.1 over Bun (round-2):** chosen for CF Workers + TanStack Start ecosystem alignment; pinned via `packageManager` field.
 - **Pydantic SOT → JSON Schema → Zod TS codegen (round-2):** committed file, single direction, `just codegen` recipe. Hand-maintaining 5 shapes twice was the alternative; codegen wins for drift safety.
-- **Containerfiles colocated, multi-stage (round-3):** Containerfile lives next to each package's manifest (`apps/web/Containerfile`, `packages/pipeline-api/Containerfile`). One file per package with multiple stages (`dev`, `prod`, plus `mock` for pipeline-api). Compose `target:` selects the stage. `infra/` stays compose-only. Centralized `infra/<name>.Containerfile` was the alternative; colocation matches Docker convention and simplifies build context.
+- **Containerfiles colocated, multi-stage (round-3):** Containerfile lives next to each package's manifest (`apps/web/Containerfile`, `services/pipeline-api/Containerfile`). One file per package with multiple stages (`dev`, `prod`, plus `mock` for pipeline-api). Compose `target:` selects the stage. `infra/` stays compose-only. Centralized `infra/<name>.Containerfile` was the alternative; colocation matches Docker convention and simplifies build context.
 - **Mock pipeline as `--mock` flag (round-3):** `mock.py` lives inside `pipeline-api`; the `mock` Containerfile stage just sets a different `CMD`. Heavier image (glmocr/paddle still present but not imported under `--mock`) accepted as the cost of avoiding a separate package and route-signature drift.
 - **TS lint = eslint + prettier (round-3):** familiarity and plugin breadth over Biome's speed. Configs at root with per-app overrides.
 
@@ -287,4 +290,4 @@ The codegen arrow is one-way: Python schemas → TS types (committed).
 - **GPU passthrough for vLLM in podman compose** — works (NVIDIA Container Toolkit + `--device nvidia.com/gpu=all` or `runtime: nvidia`) but is fiddly per-distro and per-compose-version.
 - **`uv run --package pipeline-api` ergonomics** when the primary dev path is containers — the host install exists for IDE/LSP, but the venv may go stale relative to the container if deps drift between rebuilds. Possibly add a `just sync` recipe that does both.
 - **Pydantic v2 → JSON Schema → quicktype output cleanliness** for daily TS use, or whether it needs a post-process pass (e.g. for `Optional[T]` → `T | null` vs `T?` conventions).
-- **Mock-stage image size** — keeping glmocr + paddle in the `mock` stage's dep tree (just unused) inflates the image. If it bites in CI, split to a separate `packages/pipeline-mock` package as a v0.5 fix.
+- **Mock-stage image size** — keeping glmocr + paddle in the `mock` stage's dep tree (just unused) inflates the image. If it bites in CI, split to a separate `services/pipeline-mock` package as a v0.5 fix.
