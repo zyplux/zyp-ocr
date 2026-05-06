@@ -1,0 +1,36 @@
+[project]
+name = "pipeline-api"
+version = "0.0.0"
+description = "Totvibe-OCR pipeline service: glmocr SDK + FastAPI + asyncio."
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.118",
+    "uvicorn[standard]>=0.40",
+    "pydantic>=2.12",
+    "aioboto3>=15.0",
+    "aiosqlite>=0.22",
+    "httpx>=0.28",
+    "python-ulid>=3.0",
+]
+
+[project.optional-dependencies]
+# glmocr's `selfhosted` extra brings torch+transformers+pypdfium2 (the OCR ML stack).
+# PP-DocLayoutV3 / paddlepaddle-gpu had no cp314 wheels at scaffolding time; if
+# the SDK ends up needing paddle, add it back when wheels exist.
+ocr = [
+    "glmocr[selfhosted]>=0.1.5",
+]
+
+[project.scripts]
+pipeline-api = "pipeline_api.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pipeline_api"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
