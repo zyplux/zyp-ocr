@@ -37,7 +37,7 @@ services:
       minio:
         condition: service_healthy
       pipeline-api:
-        condition: service_started
+        condition: service_healthy
 
   pipeline-api:
     build:
@@ -105,6 +105,12 @@ services:
       - "--speculative-config={\"method\":\"mtp\"}"
     volumes:
       - vllm-cache:/root/.cache/huggingface
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 300s
     deploy:
       resources:
         reservations:

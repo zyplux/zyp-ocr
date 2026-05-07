@@ -17,6 +17,9 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 WORKDIR /app
+# Inherited by dev/prod/mock — all serve /healthz on :8000.
+HEALTHCHECK --interval=5s --timeout=3s --start-period=15s --retries=10 \
+    CMD curl -fsS http://127.0.0.1:8000/healthz || exit 1
 
 # ---------- deps (workspace-aware sync, no extras) ----------
 FROM base AS deps
