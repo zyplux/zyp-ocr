@@ -54,24 +54,29 @@ format: codegen
     pnpm exec prettier --write .
     uv run --active ruff format .
 
-# Type-check JS (root + all workspaces) and the pipeline-api Python service. Runs `format` first.
-typecheck: format
+# Type-check JS (root + all workspaces) and pipeline-api Python; runs `format`+`codegen` first (skip with --check/-c).
+[arg('fix', short='c', long='check', value='')]
+typecheck fix='--fix':
+    {{ if fix == '--fix' { 'just format' } else { ':' } }}
     pnpm typecheck
     uv run --active ty check services/pipeline-api/src
 
-# Lint JS (eslint), Python (ruff), and Markdown (rumdl) — all auto-fix. Runs `typecheck` first.
-lint: typecheck
-    pnpm lint:fix
-    uv run --active ruff check --fix .
-    rumdl check --fix .
+# Lint JS (eslint), Python (ruff), Markdown (rumdl) — autofix by default; runs `typecheck` first. --check/-c to check only.
+[arg('fix', short='c', long='check', value='')]
+lint fix='--fix': (typecheck fix)
+    pnpm {{ if fix == '--fix' { 'lint:fix' } else { 'lint' } }}
+    uv run --active ruff check {{ fix }} .
+    rumdl check {{ fix }} .
 
-# Run all JS (workspace) and Python (pytest) unit tests. Runs `lint` first.
-test: lint
+# Run all JS (workspace) and Python (pytest) unit tests; runs `lint` first. --check/-c to skip format/codegen and lint fixes.
+[arg('fix', short='c', long='check', value='')]
+test fix='--fix': (lint fix)
     pnpm -r test
     uv run --active pytest
 
-# Run end-to-end Python tests (gated by the TOTVIBE_E2E flag). Runs `test` first.
-e2e: test
+# Run end-to-end Python tests (gated by TOTVIBE_E2E); runs `test` first. --check/-c to skip format/codegen and lint fixes.
+[arg('fix', short='c', long='check', value='')]
+e2e fix='--fix': (test fix)
     TOTVIBE_E2E=1 uv run --active pytest -k e2e
 
 # Load fixture objects into the local MinIO bucket for development.
