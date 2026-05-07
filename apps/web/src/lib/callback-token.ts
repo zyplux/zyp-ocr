@@ -15,7 +15,7 @@ const encoder = new TextEncoder();
 
 const base64UrlEncode = (bytes: Uint8Array): string => {
   let bin = '';
-  for (const b of bytes) bin += String.fromCharCode(b);
+  for (const b of bytes) bin += String.fromCodePoint(b);
   return btoa(bin).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
 };
 
@@ -24,7 +24,7 @@ const base64UrlDecode = (input: string): Uint8Array => {
   const pad = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4));
   const bin = atob(padded + pad);
   const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.codePointAt(i) ?? 0;
   return bytes;
 };
 

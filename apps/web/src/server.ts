@@ -1,5 +1,6 @@
 import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { createStartHandler, defaultStreamHandler } from '@tanstack/react-start/server';
+import { Hono } from 'hono';
 
 import type { ApplyCallbackInput } from './durable-objects/user-do';
 
@@ -130,46 +131,22 @@ const proxyBlob = async (env: Env, key: string, contentType: string): Promise<Re
   }
 };
 
-const SOURCE_RE = /^\/api\/jobs\/([^/]+)\/source$/;
-const PAGE_RE = /^\/api\/jobs\/([^/]+)\/pages\/(\d+)$/;
-
-const routeApi = async (request: Request, env: Env): Promise<null | Response> => {
-  const url = new URL(request.url);
-  const { pathname } = url;
-  if (!pathname.startsWith('/api/')) return null;
-
-  if (pathname === '/api/jobs' && request.method === 'POST') {
-    return await handleCreateJob(request, env);
-  }
-  if (pathname === '/api/me/items' && request.method === 'GET') {
-    return await handleSnapshot(env);
-  }
-  if (pathname === '/api/me/ws') {
-    return await handleWebSocket(request, env);
-  }
-  if (pathname === '/api/pipeline/callback' && request.method === 'POST') {
-    return await handlePipelineCallback(request, env);
-  }
-  const sourceMatch = SOURCE_RE.exec(pathname);
-  if (sourceMatch && request.method === 'GET') {
-    const [, jobId] = sourceMatch;
-    if (jobId) return await proxyBlob(env, sourceKey(jobId), 'application/pdf');
-  }
-  const pageMatch = PAGE_RE.exec(pathname);
-  if (pageMatch && request.method === 'GET') {
-    const [, jobId, pageStr] = pageMatch;
-    if (jobId && pageStr) {
-      const n = Number.parseInt(pageStr, 10);
-      return await proxyBlob(env, pageKey(jobId, n), 'text/markdown; charset=utf-8');
-    }
-  }
-  return new Response('not found', { status: 404 });
-};
+const api = new Hono<{ Bindings: Env }>()
+  .post('/api/jobs', c => handleCreateJob(c.req.raw, c.env))
+  .get('/api/me/items', c => handleSnapshot(c.env))
+  .all('/api/me/ws', c => handleWebSocket(c.req.raw, c.env))
+  .post('/api/pipeline/callback', c => handlePipelineCallback(c.req.raw, c.env))
+  .get('/api/jobs/:jobId/source', c => proxyBlob(c.env, sourceKey(c.req.param('jobId')), 'application/pdf'))
+  .get('/api/jobs/:jobId/pages/:page', c => {
+    const page = Number.parseInt(c.req.param('page'), 10);
+    return proxyBlob(c.env, pageKey(c.req.param('jobId'), page), 'text/markdown; charset=utf-8');
+  });
 
 export default {
-  fetch: async (request, env) => {
-    const apiResponse = await routeApi(request, env);
-    if (apiResponse) return apiResponse;
+  fetch: async (request, env, ctx) => {
+    if (new URL(request.url).pathname.startsWith('/api/')) {
+      return api.fetch(request, env, ctx);
+    }
     return startHandler(request);
   },
 } satisfies ExportedHandler<Env>;

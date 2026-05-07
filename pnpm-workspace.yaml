@@ -20,6 +20,7 @@ catalog:
   eslint: ^10.3.0
   eslint-plugin-react: ^7.37.5
   eslint-plugin-react-hooks: ^7.1.1
+  hono: ^4.12.18
   jotai: ^2.20.0
   jsdom: ^29.1.1
   katex: ^0.16.45

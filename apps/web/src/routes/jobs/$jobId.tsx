@@ -53,17 +53,22 @@ const JobPage = () => {
 };
 
 const PageBlock = ({ jobId, page }: { jobId: string; page: PageRow }) => {
-  const [markdown, setMarkdown] = useState<null | string>(null);
+  const [markdown, setMarkdown] = useState<string>();
 
   useEffect(() => {
     if (page.status !== 'done' || !page.markdown_key) return;
     let cancelled = false;
-    void fetch(`/api/jobs/${jobId}/pages/${page.page_number}`)
-      .then(r => (r.ok ? r.text() : Promise.reject(new Error(`${r.status}`))))
-      .then(text => {
+    const load = async () => {
+      try {
+        const r = await fetch(`/api/jobs/${jobId}/pages/${page.page_number}`);
+        if (!r.ok) return;
+        const text = await r.text();
         if (!cancelled) setMarkdown(text);
-      })
-      .catch(() => {});
+      } catch {
+        /* ignore fetch failures; rerender will retry on dep change */
+      }
+    };
+    void load();
     return () => {
       cancelled = true;
     };
@@ -76,8 +81,8 @@ const PageBlock = ({ jobId, page }: { jobId: string; page: PageRow }) => {
       </h2>
       {page.status === 'failed' && <p style={{ color: 'crimson' }}>{page.error ?? 'failed'}</p>}
       {page.status === 'pending' && <p>processing…</p>}
-      {page.status === 'done' && markdown !== null && <Markdown source={markdown} />}
-      {page.status === 'done' && markdown === null && <p>fetching markdown…</p>}
+      {page.status === 'done' && markdown !== undefined && <Markdown source={markdown} />}
+      {page.status === 'done' && markdown === undefined && <p>fetching markdown…</p>}
     </section>
   );
 };

@@ -20,6 +20,7 @@
     "@tanstack/react-db": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
+    "hono": "catalog:",
     "jotai": "catalog:",
     "katex": "catalog:",
     "react": "catalog:",

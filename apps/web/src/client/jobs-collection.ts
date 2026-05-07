@@ -20,9 +20,9 @@ type Writer<T extends object> = {
   write: (msg: { type: 'insert' | 'update'; value: T }) => void;
 };
 
-let jobsWriter: null | Writer<JobRow> = null;
-let pagesWriter: null | Writer<PageRow> = null;
-let teardown: (() => void) | null = null;
+let jobsWriter: undefined | Writer<JobRow>;
+let pagesWriter: undefined | Writer<PageRow>;
+let teardown: (() => void) | undefined;
 
 const applySnapshot = (snap: Snapshot): void => {
   if (jobsWriter) {
@@ -55,20 +55,20 @@ const applyDelta = (delta: Delta): void => {
   }
 };
 
+const fetchSnapshot = async (): Promise<void> => {
+  const res = await fetch('/api/me/items', { credentials: 'same-origin' });
+  if (!res.ok) throw new Error(`hydrate failed: ${res.status}`);
+  const snap: Snapshot = await res.json();
+  applySnapshot(snap);
+  jobsWriter?.markReady();
+  pagesWriter?.markReady();
+};
+
 const openLiveStream = (): (() => void) => {
   let closed = false;
-  let socket: null | WebSocket = null;
+  let socket: undefined | WebSocket;
   let attempt = 0;
-  let timer: null | ReturnType<typeof setTimeout> = null;
-
-  const fetchSnapshot = async () => {
-    const res = await fetch('/api/me/items', { credentials: 'same-origin' });
-    if (!res.ok) throw new Error(`hydrate failed: ${res.status}`);
-    const snap: Snapshot = await res.json();
-    applySnapshot(snap);
-    jobsWriter?.markReady();
-    pagesWriter?.markReady();
-  };
+  let timer: ReturnType<typeof setTimeout> | undefined;
 
   const connect = () => {
     if (closed) return;
@@ -91,9 +91,7 @@ const openLiveStream = (): (() => void) => {
       const backoff = Math.min(30_000, 500 * 2 ** Math.min(attempt, 6));
       attempt += 1;
       timer = setTimeout(() => {
-        void fetchSnapshot()
-          .catch(() => {})
-          .finally(connect);
+        void hydrateThenConnect();
       }, backoff);
     });
     ws.addEventListener('error', () => {
@@ -105,9 +103,16 @@ const openLiveStream = (): (() => void) => {
     });
   };
 
-  void fetchSnapshot()
-    .catch(() => {})
-    .finally(connect);
+  const hydrateThenConnect = async () => {
+    try {
+      await fetchSnapshot();
+    } catch {
+      /* hydrate failures are recoverable; reconnect loop will retry */
+    }
+    connect();
+  };
+
+  void hydrateThenConnect();
 
   return () => {
     closed = true;

@@ -7,13 +7,13 @@ import { jobsCollection } from '../client/jobs-collection';
 const HomePage = () => {
   const router = useRouter();
   const { data: jobs } = useLiveQuery(q => q.from({ j: jobsCollection }));
-  const [error, setError] = useState<null | string>(null);
+  const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   const upload = useCallback(
     async (file: File) => {
       setBusy(true);
-      setError(null);
+      setError('');
       try {
         const res = await fetch('/api/jobs', {
           body: file,

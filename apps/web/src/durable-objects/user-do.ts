@@ -20,14 +20,14 @@ export type CreateJobInput = {
 };
 
 export type JobRow = {
-  completed_at: null | number;
+  completed_at?: number;
   created_at: number;
-  error: null | string;
+  error?: string;
   id: string;
-  pipeline_id: null | string;
+  pipeline_id?: string;
   size_bytes: number;
   source_key: string;
-  started_at: null | number;
+  started_at?: number;
   status: JobStatus;
   total_pages: number;
 };
@@ -35,11 +35,23 @@ export type JobRow = {
 export type JobStatus = 'done' | 'failed' | 'pending' | 'processing';
 
 export type PageRow = {
-  error: null | string;
+  error?: string;
   job_id: string;
-  markdown_key: null | string;
+  markdown_key?: string;
   page_number: number;
   status: PageStatus;
+};
+
+const SQL_NULL = JSON.parse('null') as SqlStorageValue;
+
+type SqlRow = Record<string, SqlStorageValue>;
+
+const cleanRow = (raw: SqlRow): Record<string, unknown> => {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (v !== SQL_NULL) out[k] = v;
+  }
+  return out;
 };
 
 export type PageStatus = 'done' | 'failed' | 'pending';
@@ -70,14 +82,16 @@ export class UserDO extends DurableObject<Env> {
   override async alarm(): Promise<void> {
     const now = Date.now();
     const cutoff = now - this.reconcileTimeoutMs();
-    const stale = this.ctx.storage.sql
-      .exec<JobRow>(
-        `SELECT * FROM jobs
+    const stale = (
+      this.ctx.storage.sql
+        .exec(
+          `SELECT * FROM jobs
          WHERE status IN ('pending','processing')
            AND created_at < ?`,
-        cutoff,
-      )
-      .toArray();
+          cutoff,
+        )
+        .toArray() as SqlRow[]
+    ).map(r => cleanRow(r) as unknown as JobRow);
     for (const job of stale) {
       this.ctx.storage.sql.exec(
         `UPDATE jobs SET status = 'failed', error = 'timeout', completed_at = ? WHERE id = ?`,
@@ -111,8 +125,8 @@ export class UserDO extends DurableObject<Env> {
          SET status = ?, markdown_key = ?, error = ?
          WHERE job_id = ? AND page_number = ?`,
         input.status,
-        input.markdownKey ?? null,
-        input.error ?? null,
+        input.markdownKey ?? SQL_NULL,
+        input.error ?? SQL_NULL,
         input.jobId,
         input.pageNumber,
       );
@@ -128,7 +142,7 @@ export class UserDO extends DurableObject<Env> {
       `UPDATE jobs SET status = ?, completed_at = ?, error = ? WHERE id = ?`,
       finalStatus,
       Date.now(),
-      input.error ?? null,
+      input.error ?? SQL_NULL,
       input.jobId,
     );
     this.broadcast({ op: 'job-upsert', row: this.requireJob(input.jobId) });
@@ -242,7 +256,7 @@ export class UserDO extends DurableObject<Env> {
     this.ctx.acceptWebSocket(server);
     const snap = this.readSnapshot();
     server.send(JSON.stringify({ op: 'snapshot', snapshot: snap } satisfies Delta));
-    return new Response(null, { status: 101, webSocket: client });
+    return new Response(undefined, { status: 101, webSocket: client });
   }
 
   private maybeCompleteJob(jobId: string): void {
@@ -269,8 +283,12 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private readSnapshot(): Snapshot {
-    const jobs = this.ctx.storage.sql.exec<JobRow>(`SELECT * FROM jobs ORDER BY created_at DESC`).toArray();
-    const pages = this.ctx.storage.sql.exec<PageRow>(`SELECT * FROM job_pages ORDER BY job_id, page_number`).toArray();
+    const jobs = (this.ctx.storage.sql.exec(`SELECT * FROM jobs ORDER BY created_at DESC`).toArray() as SqlRow[]).map(
+      r => cleanRow(r) as unknown as JobRow,
+    );
+    const pages = (
+      this.ctx.storage.sql.exec(`SELECT * FROM job_pages ORDER BY job_id, page_number`).toArray() as SqlRow[]
+    ).map(r => cleanRow(r) as unknown as PageRow);
     return { jobs, pages };
   }
 
@@ -280,19 +298,19 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private requireJob(jobId: string): JobRow {
-    const rows = this.ctx.storage.sql.exec<JobRow>(`SELECT * FROM jobs WHERE id = ?`, jobId).toArray();
+    const rows = this.ctx.storage.sql.exec(`SELECT * FROM jobs WHERE id = ?`, jobId).toArray() as SqlRow[];
     const row = rows[0];
     if (!row) throw new Error(`job not found: ${jobId}`);
-    return row;
+    return cleanRow(row) as unknown as JobRow;
   }
 
   private requirePage(jobId: string, pageNumber: number): PageRow {
     const rows = this.ctx.storage.sql
-      .exec<PageRow>(`SELECT * FROM job_pages WHERE job_id = ? AND page_number = ?`, jobId, pageNumber)
-      .toArray();
+      .exec(`SELECT * FROM job_pages WHERE job_id = ? AND page_number = ?`, jobId, pageNumber)
+      .toArray() as SqlRow[];
     const row = rows[0];
     if (!row) throw new Error(`page not found: ${jobId}/${pageNumber}`);
-    return row;
+    return cleanRow(row) as unknown as PageRow;
   }
 
   private async scheduleReconcile(): Promise<void> {
