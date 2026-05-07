@@ -4,10 +4,6 @@ import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 
-export function Markdown({ source }: { source: string }) {
-  return (
-    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+export const Markdown = ({ source }: { source: string }) => <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
       {source}
-    </ReactMarkdown>
-  );
-}
+    </ReactMarkdown>;

@@ -3,11 +3,7 @@ import { useLiveQuery } from '@tanstack/react-db';
 import { useCallback, useState } from 'react';
 import { jobsCollection } from '../client/jobs-collection';
 
-export const Route = createFileRoute('/')({
-  component: HomePage,
-});
-
-function HomePage() {
+const HomePage = () => {
   const router = useRouter();
   const { data: jobs } = useLiveQuery(q => q.from({ j: jobsCollection }));
   const [error, setError] = useState<string | null>(null);
@@ -97,4 +93,8 @@ function HomePage() {
       )}
     </main>
   );
-}
+};
+
+export const Route = createFileRoute('/')({
+  component: HomePage,
+});

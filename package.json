@@ -15,6 +15,7 @@
     "format": "prettier --write ."
   },
   "devDependencies": {
+    "@eslint/config-helpers": "catalog:",
     "@eslint/js": "catalog:",
     "@types/node": "catalog:",
     "eslint": "catalog:",

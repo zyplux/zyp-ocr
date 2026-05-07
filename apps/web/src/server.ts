@@ -14,18 +14,14 @@ const MAX_PDF_BYTES = 50 * 1024 * 1024;
 const MAX_PAGES = 100;
 const DEFAULT_USER_DO = 'default';
 
-function userStub(env: Env) {
-  return env.USER_DO.get(env.USER_DO.idFromName(DEFAULT_USER_DO));
-}
+const userStub = (env: Env) => env.USER_DO.get(env.USER_DO.idFromName(DEFAULT_USER_DO));
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
+const jsonResponse = (body: unknown, status = 200): Response => new Response(JSON.stringify(body), {
     status,
     headers: { 'content-type': 'application/json' },
   });
-}
 
-async function handleCreateJob(request: Request, env: Env): Promise<Response> {
+const handleCreateJob = async (request: Request, env: Env): Promise<Response> => {
   const contentType = request.headers.get('content-type') ?? '';
   if (!contentType.includes('application/pdf')) {
     return jsonResponse({ error: 'expected application/pdf' }, 415);
@@ -63,15 +59,15 @@ async function handleCreateJob(request: Request, env: Env): Promise<Response> {
     }),
   );
   return jsonResponse({ jobId: result.jobId });
-}
+};
 
-async function handleSnapshot(env: Env): Promise<Response> {
+const handleSnapshot = async (env: Env): Promise<Response> => {
   const stub = userStub(env);
   const snap = await stub.snapshot();
   return jsonResponse(snap);
-}
+};
 
-async function handleWebSocket(request: Request, env: Env): Promise<Response> {
+const handleWebSocket = async (request: Request, env: Env): Promise<Response> => {
   if (request.headers.get('Upgrade') !== 'websocket') {
     return new Response('expected websocket upgrade', { status: 426 });
   }
@@ -79,9 +75,9 @@ async function handleWebSocket(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   url.pathname = '/ws';
   return await stub.fetch(new Request(url, request));
-}
+};
 
-async function handlePipelineCallback(request: Request, env: Env): Promise<Response> {
+const handlePipelineCallback = async (request: Request, env: Env): Promise<Response> => {
   const token = request.headers.get('x-callback-token');
   if (!token) return jsonResponse({ error: 'missing x-callback-token' }, 401);
   const secrets = [env.CALLBACK_HMAC_SECRET, env.CALLBACK_HMAC_SECRET_PREVIOUS ?? ''];
@@ -111,9 +107,9 @@ async function handlePipelineCallback(request: Request, env: Env): Promise<Respo
   if (parsed.data.error) input.error = parsed.data.error;
   await stub.applyCallback(input);
   return jsonResponse({ ok: true });
-}
+};
 
-async function proxyBlob(env: Env, key: string, contentType: string): Promise<Response> {
+const proxyBlob = async (env: Env, key: string, contentType: string): Promise<Response> => {
   const s3 = makeS3Client(env);
   try {
     const obj = await s3.send(new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: key }));
@@ -129,12 +125,12 @@ async function proxyBlob(env: Env, key: string, contentType: string): Promise<Re
   } catch {
     return new Response('not found', { status: 404 });
   }
-}
+};
 
 const SOURCE_RE = /^\/api\/jobs\/([^/]+)\/source$/;
 const PAGE_RE = /^\/api\/jobs\/([^/]+)\/pages\/(\d+)$/;
 
-async function routeApi(request: Request, env: Env): Promise<Response | null> {
+const routeApi = async (request: Request, env: Env): Promise<Response | null> => {
   const url = new URL(request.url);
   const { pathname } = url;
   if (!pathname.startsWith('/api/')) return null;
@@ -165,10 +161,10 @@ async function routeApi(request: Request, env: Env): Promise<Response | null> {
     }
   }
   return new Response('not found', { status: 404 });
-}
+};
 
 export default {
-  async fetch(request, env) {
+  fetch: async (request, env) => {
     const apiResponse = await routeApi(request, env);
     if (apiResponse) return apiResponse;
     return startHandler(request);

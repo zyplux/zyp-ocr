@@ -23,7 +23,7 @@ let jobsWriter: Writer<JobRow> | null = null;
 let pagesWriter: Writer<PageRow> | null = null;
 let teardown: (() => void) | null = null;
 
-function applySnapshot(snap: Snapshot): void {
+const applySnapshot = (snap: Snapshot): void => {
   if (jobsWriter) {
     jobsWriter.begin();
     for (const row of snap.jobs) jobsWriter.write({ type: 'insert', value: row });
@@ -34,9 +34,9 @@ function applySnapshot(snap: Snapshot): void {
     for (const row of snap.pages) pagesWriter.write({ type: 'insert', value: row });
     pagesWriter.commit();
   }
-}
+};
 
-function applyDelta(delta: Delta): void {
+const applyDelta = (delta: Delta): void => {
   if (delta.op === 'snapshot') {
     applySnapshot(delta.snapshot);
     return;
@@ -52,9 +52,9 @@ function applyDelta(delta: Delta): void {
     pagesWriter.write({ type: 'update', value: delta.row });
     pagesWriter.commit();
   }
-}
+};
 
-function openLiveStream(): () => void {
+const openLiveStream = (): () => void => {
   let closed = false;
   let socket: WebSocket | null = null;
   let attempt = 0;
@@ -113,13 +113,13 @@ function openLiveStream(): () => void {
     if (timer) clearTimeout(timer);
     if (socket) socket.close();
   };
-}
+};
 
-function maybeStart(): void {
+const maybeStart = (): void => {
   if (jobsWriter && pagesWriter && !teardown) {
     teardown = openLiveStream();
   }
-}
+};
 
 export const jobsCollection = createCollection<JobRow, string>({
   id: 'jobs',

@@ -5,11 +5,7 @@ import { Markdown } from '../../client/markdown';
 import { jobsCollection, pagesCollection } from '../../client/jobs-collection';
 import type { PageRow } from '../../durable-objects/user-do';
 
-export const Route = createFileRoute('/jobs/$jobId')({
-  component: JobPage,
-});
-
-function JobPage() {
+const JobPage = () => {
   const params: { jobId: string } = Route.useParams();
   const { jobId } = params;
   const { data: jobMatches } = useLiveQuery(
@@ -52,9 +48,9 @@ function JobPage() {
       ))}
     </main>
   );
-}
+};
 
-function PageBlock({ jobId, page }: { jobId: string; page: PageRow }) {
+const PageBlock = ({ jobId, page }: { jobId: string; page: PageRow }) => {
   const [markdown, setMarkdown] = useState<string | null>(null);
 
   useEffect(() => {
@@ -82,4 +78,8 @@ function PageBlock({ jobId, page }: { jobId: string; page: PageRow }) {
       {page.status === 'done' && markdown === null && <p>fetching markdown…</p>}
     </section>
   );
-}
+};
+
+export const Route = createFileRoute('/jobs/$jobId')({
+  component: JobPage,
+});

@@ -13,44 +13,42 @@ export type CallbackClaims = {
 
 const encoder = new TextEncoder();
 
-function base64UrlEncode(bytes: Uint8Array): string {
+const base64UrlEncode = (bytes: Uint8Array): string => {
   let bin = '';
   for (const b of bytes) bin += String.fromCharCode(b);
   return btoa(bin).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
-}
+};
 
-function base64UrlDecode(input: string): Uint8Array {
+const base64UrlDecode = (input: string): Uint8Array => {
   const padded = input.replaceAll('-', '+').replaceAll('_', '/');
   const pad = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4));
   const bin = atob(padded + pad);
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return bytes;
-}
+};
 
-async function importKey(secret: string): Promise<CryptoKey> {
-  return await crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, [
+const importKey = async (secret: string): Promise<CryptoKey> => await crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, [
     'sign',
     'verify',
   ]);
-}
 
-function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
+const timingSafeEqual = (a: Uint8Array, b: Uint8Array): boolean => {
   if (a.byteLength !== b.byteLength) return false;
   let diff = 0;
   for (let i = 0; i < a.byteLength; i++) diff |= (a[i] ?? 0) ^ (b[i] ?? 0);
   return diff === 0;
-}
+};
 
-export async function signCallbackToken(claims: CallbackClaims, secret: string): Promise<string> {
+export const signCallbackToken = async (claims: CallbackClaims, secret: string): Promise<string> => {
   const headerBytes = encoder.encode(JSON.stringify(claims));
   const header = base64UrlEncode(headerBytes);
   const key = await importKey(secret);
   const sigBuf = await crypto.subtle.sign('HMAC', key, encoder.encode(header));
   return `${header}.${base64UrlEncode(new Uint8Array(sigBuf))}`;
-}
+};
 
-export async function verifyCallbackToken(token: string, secrets: readonly string[]): Promise<CallbackClaims> {
+export const verifyCallbackToken = async (token: string, secrets: readonly string[]): Promise<CallbackClaims> => {
   const dot = token.indexOf('.');
   if (dot < 0) throw new Error('malformed token');
   const header = token.slice(0, dot);
@@ -75,4 +73,4 @@ export async function verifyCallbackToken(token: string, secrets: readonly strin
     throw new Error('token expired');
   }
   return claims;
-}
+};
