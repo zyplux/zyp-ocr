@@ -105,7 +105,7 @@ const requireCallbackToken: MiddlewareHandler<App> = async (c, next) => {
   await next();
 };
 
-const proxyBlob = async (env: Env, key: string, contentType: string): Promise<Response> => {
+const proxyBlob = async (env: Env, key: string, contentType: string) => {
   const s3 = makeS3Client(env);
   try {
     const obj = await s3.send(new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: key }));

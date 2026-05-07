@@ -1,6 +1,6 @@
 import { S3Client } from '@aws-sdk/client-s3';
 
-export const makeS3Client = (env: Env): S3Client =>
+export const makeS3Client = (env: Env) =>
   new S3Client({
     credentials: {
       accessKeyId: env.S3_ACCESS_KEY_ID,
@@ -11,5 +11,5 @@ export const makeS3Client = (env: Env): S3Client =>
     region: env.S3_REGION,
   });
 
-export const sourceKey = (jobId: string): string => `jobs/${jobId}/source.pdf`;
-export const pageKey = (jobId: string, page: number): string => `jobs/${jobId}/pages/${page}.md`;
+export const sourceKey = (jobId: string) => `jobs/${jobId}/source.pdf`;
+export const pageKey = (jobId: string, page: number) => `jobs/${jobId}/pages/${page}.md`;

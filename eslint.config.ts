@@ -14,7 +14,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import unicorn from 'eslint-plugin-unicorn';
 import tseslint from 'typescript-eslint';
 
-const catalogVersion = (pkg: string): string => {
+const catalogVersion = (pkg: string) => {
   const workspace = readFileSync(fileURLToPath(new URL('pnpm-workspace.yaml', import.meta.url)), 'utf8');
   const pattern = new RegExp(
     String.raw`^\s*['"]?${pkg.replaceAll(/[/@]/g, String.raw`\$&`)}['"]?:\s*\^?([\d.]+)\s*$`,
@@ -122,7 +122,7 @@ const totvibeConfig = {
   files: ['**/*.{ts,tsx}'],
   plugins: { '@totvibe': totvibe },
   rules: {
-    '@totvibe/no-as-any': 'error',
+    '@totvibe/no-inferrable-return-type': 'error',
   },
 } satisfies ConfigWithExtends;
 

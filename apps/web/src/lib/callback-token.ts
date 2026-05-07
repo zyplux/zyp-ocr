@@ -13,13 +13,13 @@ export type CallbackClaims = {
 
 const encoder = new TextEncoder();
 
-const base64UrlEncode = (bytes: Uint8Array): string => {
+const base64UrlEncode = (bytes: Uint8Array) => {
   let bin = '';
   for (const b of bytes) bin += String.fromCodePoint(b);
   return btoa(bin).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
 };
 
-const base64UrlDecode = (input: string): Uint8Array => {
+const base64UrlDecode = (input: string) => {
   const padded = input.replaceAll('-', '+').replaceAll('_', '/');
   const pad = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4));
   const bin = atob(padded + pad);
@@ -28,20 +28,20 @@ const base64UrlDecode = (input: string): Uint8Array => {
   return bytes;
 };
 
-const importKey = async (secret: string): Promise<CryptoKey> =>
+const importKey = async (secret: string) =>
   await crypto.subtle.importKey('raw', encoder.encode(secret), { hash: 'SHA-256', name: 'HMAC' }, false, [
     'sign',
     'verify',
   ]);
 
-const timingSafeEqual = (a: Uint8Array, b: Uint8Array): boolean => {
+const timingSafeEqual = (a: Uint8Array, b: Uint8Array) => {
   if (a.byteLength !== b.byteLength) return false;
   let diff = 0;
   for (let i = 0; i < a.byteLength; i++) diff |= (a[i] ?? 0) ^ (b[i] ?? 0);
   return diff === 0;
 };
 
-export const signCallbackToken = async (claims: CallbackClaims, secret: string): Promise<string> => {
+export const signCallbackToken = async (claims: CallbackClaims, secret: string) => {
   const headerBytes = encoder.encode(JSON.stringify(claims));
   const header = base64UrlEncode(headerBytes);
   const key = await importKey(secret);
@@ -49,7 +49,7 @@ export const signCallbackToken = async (claims: CallbackClaims, secret: string):
   return `${header}.${base64UrlEncode(new Uint8Array(sigBuf))}`;
 };
 
-export const verifyCallbackToken = async (token: string, secrets: readonly string[]): Promise<CallbackClaims> => {
+export const verifyCallbackToken = async (token: string, secrets: readonly string[]) => {
   const dot = token.indexOf('.');
   if (dot === -1) throw new Error('malformed token');
   const header = token.slice(0, dot);

@@ -1,5 +1,5 @@
-import { noAsAny } from './no-as-any';
+import { noInferrableReturnType } from './no-inferrable-return-type';
 
 export const rules = {
-  'no-as-any': noAsAny,
+  'no-inferrable-return-type': noInferrableReturnType,
 } as const;

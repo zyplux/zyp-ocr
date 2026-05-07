@@ -26,7 +26,7 @@ let jobsWriter: undefined | Writer<JobRow>;
 let pagesWriter: undefined | Writer<PageRow>;
 let teardown: (() => void) | undefined;
 
-const applySnapshot = (snap: Snapshot): void => {
+const applySnapshot = (snap: Snapshot) => {
   if (jobsWriter) {
     jobsWriter.begin();
     for (const row of snap.jobs) jobsWriter.write({ type: 'insert', value: row });
@@ -39,7 +39,7 @@ const applySnapshot = (snap: Snapshot): void => {
   }
 };
 
-const applyDelta = (delta: Delta): void => {
+const applyDelta = (delta: Delta) => {
   if (delta.op === 'snapshot') {
     applySnapshot(delta.snapshot);
     return;
@@ -57,7 +57,7 @@ const applyDelta = (delta: Delta): void => {
   }
 };
 
-const fetchSnapshot = async (): Promise<void> => {
+const fetchSnapshot = async () => {
   const res = await fetch('/api/me/items', { credentials: 'same-origin' });
   if (!res.ok) throw new Error(`hydrate failed: ${res.status}`);
   const snap: Snapshot = await res.json();
@@ -66,7 +66,7 @@ const fetchSnapshot = async (): Promise<void> => {
   pagesWriter?.markReady();
 };
 
-const openLiveStream = (): (() => void) => {
+const openLiveStream = () => {
   let closed = false;
   let socket: undefined | WebSocket;
   let attempt = 0;
@@ -126,7 +126,7 @@ const openLiveStream = (): (() => void) => {
   };
 };
 
-const maybeStart = (): void => {
+const maybeStart = () => {
   if (jobsWriter && pagesWriter && !teardown) {
     teardown = openLiveStream();
   }

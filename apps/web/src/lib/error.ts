@@ -1,7 +1,7 @@
 const isErrorWithMessage = (error: unknown): error is { message: string } =>
   typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string';
 
-const rawMessage = (error: unknown): string => {
+const rawMessage = (error: unknown) => {
   if (isErrorWithMessage(error)) return error.message;
   try {
     return JSON.stringify(error);
@@ -10,7 +10,7 @@ const rawMessage = (error: unknown): string => {
   }
 };
 
-export const getMessage = (error: unknown, context?: string): string => {
+export const getMessage = (error: unknown, context?: string) => {
   const msg = rawMessage(error);
   return context ? `${context}: ${msg}` : msg;
 };
