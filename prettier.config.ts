@@ -8,7 +8,6 @@ const config: Config = {
   insertPragma: false,
   jsxSingleQuote: false,
   printWidth: 120,
-  proseWrap: 'always',
   quoteProps: 'as-needed',
   requirePragma: false,
   semi: true,
