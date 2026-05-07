@@ -6,8 +6,8 @@ import { createStartHandler, defaultStreamHandler } from '@tanstack/react-start/
 import { Hono } from 'hono';
 import { ulid } from 'ulid';
 
-import type { ApplyCallbackInput } from './durable-objects/user-do';
-import type { CallbackClaims } from './lib/callback-token';
+import type { ApplyCallbackInput } from '~/durable-objects/user-do';
+import type { CallbackClaims } from '~/lib/callback-token';
 
 import {
   BLOB_CACHE_CONTROL,
@@ -17,13 +17,14 @@ import {
   MAX_PDF_BYTES,
   MAX_PDF_MB,
   PDF_CONTENT_TYPE,
-} from './constants';
-import { PipelineCallback } from './contracts';
-import { verifyCallbackToken } from './lib/callback-token';
-import { estimatePageCount } from './lib/pdf-pages';
-import { makeS3Client, pageKey, sourceKey } from './lib/s3';
+} from '~/constants';
+import { PipelineCallback } from '~/contracts';
+import { verifyCallbackToken } from '~/lib/callback-token';
+import { getMessage } from '~/lib/error';
+import { estimatePageCount } from '~/lib/pdf-pages';
+import { makeS3Client, pageKey, sourceKey } from '~/lib/s3';
 
-export { UserDO } from './durable-objects/user-do';
+export { UserDO } from '~/durable-objects/user-do';
 
 const startHandler = createStartHandler(defaultStreamHandler);
 
@@ -99,8 +100,7 @@ const requireCallbackToken: MiddlewareHandler<App> = async (c, next) => {
     ]);
     c.set('claims', claims);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'invalid token';
-    return c.json({ error: message }, 401);
+    return c.json({ error: getMessage(err, 'callback token') }, 401);
   }
   await next();
 };

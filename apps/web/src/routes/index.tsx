@@ -2,7 +2,8 @@ import { useLiveQuery } from '@tanstack/react-db';
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router';
 import { useCallback, useState } from 'react';
 
-import { jobsCollection } from '../client/jobs-collection';
+import { jobsCollection } from '~/client/jobs-collection';
+import { getMessage } from '~/lib/error';
 
 const HomePage = () => {
   const router = useRouter();
@@ -28,7 +29,7 @@ const HomePage = () => {
         const { jobId }: { jobId: string } = await res.json();
         await router.navigate({ params: { jobId }, to: '/jobs/$jobId' });
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'upload failed');
+        setError(getMessage(err, 'upload'));
       } finally {
         setBusy(false);
       }

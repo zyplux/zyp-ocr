@@ -2,10 +2,10 @@ import { useLiveQuery } from '@tanstack/react-db';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
-import type { PageRow } from '../../durable-objects/user-do';
+import type { PageRow } from '~/durable-objects/user-do';
 
-import { jobsCollection, pagesCollection } from '../../client/jobs-collection';
-import { Markdown } from '../../client/markdown';
+import { jobsCollection, pagesCollection } from '~/client/jobs-collection';
+import { Markdown } from '~/client/markdown';
 
 const JobPage = () => {
   const params: { jobId: string } = Route.useParams();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { signCallbackToken, verifyCallbackToken } from './callback-token';
+import { signCallbackToken, verifyCallbackToken } from '~/lib/callback-token';
 
 describe('callback-token', () => {
   const claims = {

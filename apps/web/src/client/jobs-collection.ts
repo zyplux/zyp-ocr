@@ -4,9 +4,9 @@
 
 import { createCollection } from '@tanstack/db';
 
-import type { JobRow, PageRow, Snapshot } from '../durable-objects/user-do';
+import type { JobRow, PageRow, Snapshot } from '~/durable-objects/user-do';
 
-import { WS_RECONNECT_BASE_MS, WS_RECONNECT_MAX_EXPONENT, WS_RECONNECT_MAX_MS } from '../constants';
+import { WS_RECONNECT_BASE_MS, WS_RECONNECT_MAX_EXPONENT, WS_RECONNECT_MAX_MS } from '~/constants';
 
 type Delta =
   | { op: 'job-upsert'; row: JobRow }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { estimatePageCount } from './pdf-pages';
+import { estimatePageCount } from '~/lib/pdf-pages';
 
 describe('estimatePageCount', () => {
   it('reads /Count from a /Type /Pages object', () => {

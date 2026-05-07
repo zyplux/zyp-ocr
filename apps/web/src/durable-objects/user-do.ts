@@ -1,14 +1,10 @@
 import { DurableObject } from 'cloudflare:workers';
 import { ulid } from 'ulid';
 
-import {
-  DEFAULT_RECONCILE_TIMEOUT_SECONDS,
-  DEFAULT_USER_ID,
-  MAX_INFLIGHT_JOBS,
-  TOKEN_TTL_SECONDS,
-} from '../constants';
-import { type CallbackClaims, signCallbackToken } from '../lib/callback-token';
-import schemaSql from './user-do.sql?raw';
+import { DEFAULT_RECONCILE_TIMEOUT_SECONDS, DEFAULT_USER_ID, MAX_INFLIGHT_JOBS, TOKEN_TTL_SECONDS } from '~/constants';
+import schemaSql from '~/durable-objects/user-do.sql?raw';
+import { type CallbackClaims, signCallbackToken } from '~/lib/callback-token';
+import { getMessage } from '~/lib/error';
 
 export type ApplyCallbackInput = {
   callbackId: string;
@@ -349,10 +345,9 @@ export class UserDO extends DurableObject<Env> {
       const ack: { pipeline_id: string } = await res.json();
       await this.setPipelineId(jobId, ack.pipeline_id);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
       this.ctx.storage.sql.exec(
         `UPDATE jobs SET status = 'failed', error = ?, completed_at = ? WHERE id = ?`,
-        message,
+        getMessage(err, 'pipeline submit'),
         Date.now(),
         jobId,
       );
