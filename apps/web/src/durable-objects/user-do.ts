@@ -1,6 +1,12 @@
 import { DurableObject } from 'cloudflare:workers';
 import { ulid } from 'ulid';
 
+import {
+  DEFAULT_RECONCILE_TIMEOUT_SECONDS,
+  DEFAULT_USER_ID,
+  MAX_INFLIGHT_JOBS,
+  TOKEN_TTL_SECONDS,
+} from '../constants';
 import { type CallbackClaims, signCallbackToken } from '../lib/callback-token';
 import schemaSql from './user-do.sql?raw';
 
@@ -13,8 +19,8 @@ export type ApplyCallbackInput = {
   status: 'done' | 'failed';
 };
 export type CreateJobInput = {
+  jobId?: string;
   sizeBytes: number;
-  // Template using `{jobId}` placeholder; the DO substitutes its generated id.
   sourceKeyTemplate: string;
   totalPages: number;
 };
@@ -65,10 +71,6 @@ type Delta =
   | { op: 'job-upsert'; row: JobRow }
   | { op: 'page-upsert'; row: PageRow }
   | { op: 'snapshot'; snapshot: Snapshot };
-
-const MAX_INFLIGHT_JOBS = 10;
-const TOKEN_TTL_SECONDS = 24 * 60 * 60;
-const DEFAULT_USER_ID = 'default';
 
 export class UserDO extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
@@ -154,7 +156,7 @@ export class UserDO extends DurableObject<Env> {
     if (inflight >= MAX_INFLIGHT_JOBS) {
       throw new Error(`too many in-flight jobs (max ${MAX_INFLIGHT_JOBS})`);
     }
-    const jobId = ulid();
+    const jobId = input.jobId ?? ulid();
     const sourceKey = input.sourceKeyTemplate.replace('{jobId}', jobId);
     const now = Date.now();
     this.ctx.storage.sql.exec(
@@ -294,7 +296,7 @@ export class UserDO extends DurableObject<Env> {
 
   private reconcileTimeoutMs(): number {
     const seconds = Number.parseInt(this.env.RECONCILE_TIMEOUT_SECONDS, 10);
-    return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 3600 * 1000;
+    return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : DEFAULT_RECONCILE_TIMEOUT_SECONDS * 1000;
   }
 
   private requireJob(jobId: string): JobRow {

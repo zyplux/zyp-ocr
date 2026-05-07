@@ -6,6 +6,8 @@ import { createCollection } from '@tanstack/db';
 
 import type { JobRow, PageRow, Snapshot } from '../durable-objects/user-do';
 
+import { WS_RECONNECT_BASE_MS, WS_RECONNECT_MAX_EXPONENT, WS_RECONNECT_MAX_MS } from '../constants';
+
 type Delta =
   | { op: 'job-upsert'; row: JobRow }
   | { op: 'page-upsert'; row: PageRow }
@@ -88,7 +90,10 @@ const openLiveStream = (): (() => void) => {
     });
     ws.addEventListener('close', () => {
       if (closed) return;
-      const backoff = Math.min(30_000, 500 * 2 ** Math.min(attempt, 6));
+      const backoff = Math.min(
+        WS_RECONNECT_MAX_MS,
+        WS_RECONNECT_BASE_MS * 2 ** Math.min(attempt, WS_RECONNECT_MAX_EXPONENT),
+      );
       attempt += 1;
       timer = setTimeout(() => {
         void hydrateThenConnect();
