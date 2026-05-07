@@ -19,7 +19,7 @@ const DEFAULT_USER_DO = 'default';
 const userStub = (env: Env) => env.USER_DO.get(env.USER_DO.idFromName(DEFAULT_USER_DO));
 
 const jsonResponse = (body: unknown, status = 200): Response =>
-  new Response(JSON.stringify(body), {
+  Response.json(body, {
     headers: { 'content-type': 'application/json' },
     status,
   });
@@ -30,7 +30,7 @@ const handleCreateJob = async (request: Request, env: Env): Promise<Response> =>
     return jsonResponse({ error: 'expected application/pdf' }, 415);
   }
   const lengthHeader = request.headers.get('content-length');
-  const declaredLength = lengthHeader ? Number.parseInt(lengthHeader, 10) : NaN;
+  const declaredLength = lengthHeader ? Number.parseInt(lengthHeader, 10) : Number.NaN;
   if (Number.isFinite(declaredLength) && declaredLength > MAX_PDF_BYTES) {
     return jsonResponse({ error: 'file too large (max 50 MB)' }, 413);
   }
@@ -105,7 +105,7 @@ const handlePipelineCallback = async (request: Request, env: Env): Promise<Respo
     jobId: parsed.data.job_id,
     status: parsed.data.status,
   };
-  if (parsed.data.page_number != null) input.pageNumber = parsed.data.page_number;
+  if (parsed.data.page_number != undefined) input.pageNumber = parsed.data.page_number;
   if (parsed.data.markdown_key) input.markdownKey = parsed.data.markdown_key;
   if (parsed.data.error) input.error = parsed.data.error;
   await stub.applyCallback(input);

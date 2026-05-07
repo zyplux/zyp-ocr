@@ -51,7 +51,7 @@ export const signCallbackToken = async (claims: CallbackClaims, secret: string):
 
 export const verifyCallbackToken = async (token: string, secrets: readonly string[]): Promise<CallbackClaims> => {
   const dot = token.indexOf('.');
-  if (dot < 0) throw new Error('malformed token');
+  if (dot === -1) throw new Error('malformed token');
   const header = token.slice(0, dot);
   const sig = base64UrlDecode(token.slice(dot + 1));
   const headerBytes = encoder.encode(header);

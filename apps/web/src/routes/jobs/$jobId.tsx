@@ -63,7 +63,7 @@ const PageBlock = ({ jobId, page }: { jobId: string; page: PageRow }) => {
       .then(text => {
         if (!cancelled) setMarkdown(text);
       })
-      .catch(() => undefined);
+      .catch(() => {});
     return () => {
       cancelled = true;
     };

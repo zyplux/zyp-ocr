@@ -92,7 +92,7 @@ const openLiveStream = (): (() => void) => {
       attempt += 1;
       timer = setTimeout(() => {
         void fetchSnapshot()
-          .catch(() => undefined)
+          .catch(() => {})
           .finally(connect);
       }, backoff);
     });
@@ -106,7 +106,7 @@ const openLiveStream = (): (() => void) => {
   };
 
   void fetchSnapshot()
-    .catch(() => undefined)
+    .catch(() => {})
     .finally(connect);
 
   return () => {

@@ -297,7 +297,7 @@ export class UserDO extends DurableObject<Env> {
 
   private async scheduleReconcile(): Promise<void> {
     const existing = await this.ctx.storage.getAlarm();
-    if (existing != null) return;
+    if (existing != undefined) return;
     await this.ctx.storage.setAlarm(Date.now() + this.reconcileTimeoutMs());
   }
 
