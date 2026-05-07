@@ -9,6 +9,65 @@ type FunctionWithReturnType =
   | TSESTree.FunctionDeclaration
   | TSESTree.FunctionExpression;
 
+const getFunctionName = (node: FunctionWithReturnType) => {
+  if (
+    (node.type === AST_NODE_TYPES.FunctionDeclaration || node.type === AST_NODE_TYPES.FunctionExpression) &&
+    node.id
+  ) {
+    return node.id.name;
+  }
+  const parent = node.parent;
+  if (parent.type === AST_NODE_TYPES.VariableDeclarator && parent.id.type === AST_NODE_TYPES.Identifier) {
+    return parent.id.name;
+  }
+  return;
+};
+
+const traverse = (node: TSESTree.Node, visit: (n: TSESTree.Node) => boolean): boolean => {
+  if (visit(node)) return true;
+  for (const key of Object.keys(node)) {
+    if (key === 'parent' || key === 'loc' || key === 'range') continue;
+    const value = (node as unknown as Record<string, unknown>)[key];
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item !== null && typeof item === 'object' && 'type' in item && traverse(item as TSESTree.Node, visit)) {
+          return true;
+        }
+      }
+    } else if (
+      value !== null &&
+      typeof value === 'object' &&
+      'type' in value &&
+      traverse(value as TSESTree.Node, visit)
+    ) {
+      return true;
+    }
+  }
+  return false;
+};
+
+const bodyReferencesIdentifier = (body: TSESTree.Node, name: string) =>
+  traverse(body, n => n.type === AST_NODE_TYPES.Identifier && n.name === name);
+
+const collectTypeParamNames = (node: FunctionWithReturnType) => {
+  const names = new Set<string>();
+  if (node.typeParameters) {
+    for (const param of node.typeParameters.params) {
+      names.add(param.name.name);
+    }
+  }
+  return names;
+};
+
+const returnTypeReferencesAny = (typeNode: TSESTree.Node, names: Set<string>) => {
+  if (names.size === 0) return false;
+  return traverse(typeNode, n => {
+    if (n.type !== AST_NODE_TYPES.TSTypeReference) return false;
+    if (n.typeName.type !== AST_NODE_TYPES.Identifier) return false;
+    return names.has(n.typeName.name);
+  });
+};
+
 export const noInferrableReturnType = createRule({
   create: context => {
     const checkFunction = (node: FunctionWithReturnType) => {
@@ -16,6 +75,12 @@ export const noInferrableReturnType = createRule({
       if (!returnTypeNode) return;
 
       if (returnTypeNode.typeAnnotation.type === AST_NODE_TYPES.TSTypePredicate) return;
+
+      const typeParamNames = collectTypeParamNames(node);
+      if (returnTypeReferencesAny(returnTypeNode.typeAnnotation, typeParamNames)) return;
+
+      const functionName = getFunctionName(node);
+      if (functionName && bodyReferencesIdentifier(node.body, functionName)) return;
 
       const tokenBefore = context.sourceCode.getTokenBefore(returnTypeNode);
       context.report({
