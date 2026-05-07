@@ -8,17 +8,10 @@ services:
     volumes:
       - ../apps/web/src:/app/apps/web/src:Z
       - ../apps/web/wrangler.jsonc:/app/apps/web/wrangler.jsonc:Z
+      - ../apps/web/dist:/app/apps/web/dist:Z
       - wrangler-state:/app/apps/web/.wrangler
-    command:
-      - "pnpm"
-      - "--filter"
-      - "@totvibe/web"
-      - "wrangler"
-      - "dev"
-      - "--ip"
-      - "0.0.0.0"
-      - "--port"
-      - "8787"
+    command: ["pnpm", "wrangler", "dev", "--ip", "0.0.0.0", "--port", "8787"]
+    tty: true
 
   pipeline-api:
     build:

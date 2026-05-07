@@ -46,6 +46,9 @@ test:
     pnpm -r test
     uv run --active pytest
 
+e2e:
+    TOTVIBE_E2E=1 uv run --active pytest -k e2e
+
 lint:
     pnpm -r lint
     uv run --active ruff check .

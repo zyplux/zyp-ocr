@@ -14,11 +14,18 @@ Scanned PDFs in, markdown out, page-by-page over WebSocket. See [`plan/totvibe-o
 ## Quick start
 
 ```bash
-just install     # pnpm install + uv sync + podman compose build
-just dev-mock    # bring up the stack without GPU (mock pipeline, no vLLM)
+just install                                  # pnpm install + uv sync + image builds
+pnpm --filter @totvibe/web build              # produces apps/web/dist (wrangler dev consumes it)
+just dev-mock                                 # bring up the stack without GPU
 ```
 
 Open `http://localhost:8787`.
+
+To exercise the data flow end-to-end:
+
+```bash
+TOTVIBE_E2E=1 uv run --active pytest -k e2e
+```
 
 ## Common recipes
 

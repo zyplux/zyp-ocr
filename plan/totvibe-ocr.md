@@ -163,7 +163,7 @@ The two halves never share state directly. The Worker + DO owns all client-facin
   - Local SQLite (file via `aiosqlite`) tracks pipeline-side job state for pipeline crash recovery.
 - **vLLM container** (podman, GPU passthrough): `vllm/vllm-openai:v0.19.0-ubuntu2404` serving `zai-org/GLM-OCR` on `localhost:8080`, called only by the pipeline.
 - **Blob store**: MinIO container in podman locally; real R2 in production. Same code path, env-var swap of endpoint + credentials.
-- **Local dev orchestration**: a single root `justfile` delegates everything to `podman compose -f infra/compose.yaml -f infra/compose.dev.yaml up`. Four containerized services (wrangler dev, the Python pipeline, MinIO, vLLM), one entry point. Variants (mock pipeline without GPU, future test stack) are sibling override files. See [`project-structure.md`](./project-structure.md) for the repo layout.
+- **Local dev orchestration**: a single root `justfile` delegates everything to `podman compose -f infra/compose.yaml -f infra/compose.dev.yaml up`. Four containerized services (wrangler dev, the Python pipeline, MinIO, vLLM), one entry point. Variants (mock pipeline without GPU, future test stack) are sibling override files. See [`project-structure.md`](./done/001-proj-struct.md) for the repo layout.
 
 ## 10. Tech stack
 - OCR model: **GLM-OCR**. [DECIDED]
@@ -189,7 +189,7 @@ The two halves never share state directly. The Worker + DO owns all client-facin
 - Python framework: **FastAPI on uvicorn**. [DECIDED]
 - Python package manager: **uv**. [DECIDED]
 - Pipeline-local persistence: **`aiosqlite`** for pipeline-side crash recovery. [DECIDED]
-- Local dev orchestration: **`justfile`** recipes that delegate to `podman compose`. `just dev` = `podman compose -f infra/compose.yaml -f infra/compose.dev.yaml up` (all four services in containers); `just dev-mock` = same with `compose.mock.yaml` override (mock pipeline, no GPU); `just up` / `just down` for stack control; `just build` for image rebuilds. See [`project-structure.md`](./project-structure.md) for the full layout. [DECIDED]
+- Local dev orchestration: **`justfile`** recipes that delegate to `podman compose`. `just dev` = `podman compose -f infra/compose.yaml -f infra/compose.dev.yaml up` (all four services in containers); `just dev-mock` = same with `compose.mock.yaml` override (mock pipeline, no GPU); `just up` / `just down` for stack control; `just build` for image rebuilds. See [`project-structure.md`](./done/001-proj-struct.md) for the full layout. [DECIDED]
 
 ## 11. Roadmap
 - **v0.1 / walking skeleton (local-only)**: full Cloudflare-native architecture runnable locally via a single `podman compose up` — wrangler dev, the Python pipeline, MinIO, and vLLM all run as containers in one compose stack. Singleton DO. No auth. **No Cloudflare deployment.** E2E test framework skeleton (vitest + React Testing Library) drives the local stack with a mock pipeline (compose override variant) so the test loop has no GPU dependency. [DECIDED]
