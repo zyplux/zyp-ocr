@@ -54,19 +54,20 @@ format: codegen
     pnpm exec prettier --write .
     uv run --active ruff format .
 
+typecheck: format
+    pnpm -r typecheck
+    uv run --active ty check services/pipeline-api/src
+
 # Lint JS (eslint), Python (ruff), and Markdown (rumdl) — all auto-fix. Runs `format` first.
-lint: format
-    pnpm -r lint:fix
+lint: typecheck
+    pnpm lint:fix
     uv run --active ruff check --fix .
     rumdl check --fix .
 
 # Type-check JS workspaces and the pipeline-api Python service. Runs `lint` first.
-typecheck: lint
-    pnpm -r typecheck
-    uv run --active ty check services/pipeline-api/src
 
 # Run all JS (workspace) and Python (pytest) unit tests. Runs `typecheck` first.
-test: typecheck
+test: lint
     pnpm -r test
     uv run --active pytest
 

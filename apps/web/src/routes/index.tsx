@@ -54,7 +54,9 @@ function HomePage() {
       <p>Drop a scanned PDF to get markdown back, page-by-page.</p>
 
       <div
-        onDragOver={e => { e.preventDefault(); }}
+        onDragOver={e => {
+          e.preventDefault();
+        }}
         onDrop={onDrop}
         style={{
           border: '2px dashed #888',
