@@ -17,11 +17,75 @@ loads schemas.py by path so we don't need `pipeline-api` installed.
 from __future__ import annotations
 
 import importlib.util
-import json
+import re
 import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
+
+JS_IDENT = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
+JS_RESERVED = frozenset(
+    {
+        "break",
+        "case",
+        "catch",
+        "class",
+        "const",
+        "continue",
+        "debugger",
+        "default",
+        "delete",
+        "do",
+        "else",
+        "enum",
+        "export",
+        "extends",
+        "false",
+        "finally",
+        "for",
+        "function",
+        "if",
+        "import",
+        "in",
+        "instanceof",
+        "new",
+        "null",
+        "return",
+        "super",
+        "switch",
+        "this",
+        "throw",
+        "true",
+        "try",
+        "typeof",
+        "var",
+        "void",
+        "while",
+        "with",
+        "yield",
+        "let",
+        "static",
+        "implements",
+        "interface",
+        "package",
+        "private",
+        "protected",
+        "public",
+    }
+)
+
+
+def js_str(value: str) -> str:
+    """Single-quoted JS string literal (matches prettier singleQuote: true)."""
+    return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+def js_key(name: str) -> str:
+    """Object key — bare when it's a valid identifier (matches prettier quoteProps: as-needed)."""
+    if JS_IDENT.match(name) and name not in JS_RESERVED:
+        return name
+    return js_str(name)
+
 
 ROOT = Path(__file__).resolve().parent.parent
 SCHEMAS_PY = ROOT / "services/pipeline-api/src/pipeline_api/schemas.py"
@@ -49,7 +113,7 @@ def json_schema_to_zod(schema: dict[str, Any]) -> str:
     if "anyOf" in schema:
         return "z.union([" + ", ".join(json_schema_to_zod(s) for s in schema["anyOf"]) + "])"
     if "enum" in schema:
-        return "z.enum([" + ", ".join(json.dumps(v) for v in schema["enum"]) + "])"
+        return "z.enum([" + ", ".join(js_str(v) for v in schema["enum"]) + "])"
     t = schema.get("type")
     if t == "string":
         return "z.string()"
@@ -73,12 +137,12 @@ def emit_object(schema: dict[str, Any]) -> str:
     properties = schema.get("properties", {})
     required = set(schema.get("required", []))
     parts = []
-    for name, prop in properties.items():
-        zod = json_schema_to_zod(prop)
+    for name in sorted(properties):
+        zod = json_schema_to_zod(properties[name])
         if name not in required:
             zod = f"{zod}.optional()"
-        parts.append(f"  {json.dumps(name)}: {zod}")
-    return "z.object({\n" + ",\n".join(parts) + "\n})"
+        parts.append(f"  {js_key(name)}: {zod},")
+    return "z.object({\n" + "\n".join(parts) + "\n})"
 
 
 def emit_models(module) -> Iterator[str]:
@@ -97,7 +161,7 @@ def main() -> int:
         "// GENERATED FILE — do not edit by hand.\n"
         "// Source of truth: services/pipeline-api/src/pipeline_api/schemas.py\n"
         "// Run `just codegen` to regenerate.\n\n"
-        'import { z } from "zod";\n\n'
+        "import { z } from 'zod';\n\n"
     )
     body = "\n".join(emit_models(module)).rstrip() + "\n"
     OUTPUT_TS.parent.mkdir(parents=True, exist_ok=True)
