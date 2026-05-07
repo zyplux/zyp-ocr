@@ -40,33 +40,34 @@ clean:
     find . -type d -name .pytest_cache -prune -exec rm -rf {} +
     find . -type d -name .ruff_cache -prune -exec rm -rf {} +
 
-# Run all JS (workspace) and Python (pytest) unit tests.
-test:
-    pnpm -r test
-    uv run --active pytest
-
-# Run end-to-end Python tests (gated by the TOTVIBE_E2E flag).
-e2e:
-    TOTVIBE_E2E=1 uv run --active pytest -k e2e
-
-# Lint JS workspaces and Python sources (ruff check).
-lint:
-    pnpm -r lint
-    uv run --active ruff check .
-
-# Auto-format JS/MD via prettier and Python via ruff.
-format:
-    pnpm exec prettier --write .
-    uv run --active ruff format .
-
-# Type-check JS workspaces and the pipeline-api Python service.
-typecheck:
-    pnpm -r typecheck
-    uv run --active ty check services/pipeline-api/src
-
 # Export shared schemas (e.g. JSON Schema, OpenAPI) for cross-language use.
 codegen:
     uv run scripts/export_schemas.py
+
+# Auto-format JS/MD via prettier and Python via ruff. Runs `codegen` first.
+format: codegen
+    pnpm exec prettier --write .
+    uv run --active ruff format .
+
+# Lint JS (eslint), Python (ruff), and Markdown (rumdl) — all auto-fix. Runs `format` first.
+lint: format
+    pnpm -r lint:fix
+    uv run --active ruff check --fix .
+    rumdl check --fix .
+
+# Type-check JS workspaces and the pipeline-api Python service. Runs `lint` first.
+typecheck: lint
+    pnpm -r typecheck
+    uv run --active ty check services/pipeline-api/src
+
+# Run all JS (workspace) and Python (pytest) unit tests. Runs `typecheck` first.
+test: typecheck
+    pnpm -r test
+    uv run --active pytest
+
+# Run end-to-end Python tests (gated by the TOTVIBE_E2E flag). Runs `test` first.
+e2e: test
+    TOTVIBE_E2E=1 uv run --active pytest -k e2e
 
 # Load fixture objects into the local MinIO bucket for development.
 seed-minio:

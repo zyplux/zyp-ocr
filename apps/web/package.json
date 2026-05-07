@@ -12,6 +12,7 @@
     "test": "vitest run --config vitest.config.ts",
     "test:watch": "vitest --config vitest.config.ts",
     "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "wrangler:types": "wrangler types"
   },
   "dependencies": {
