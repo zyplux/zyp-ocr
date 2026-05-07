@@ -1,12 +1,24 @@
-import eslint from '@eslint/js';
 import type { ESLint } from 'eslint';
+
+import eslint from '@eslint/js';
 import { defineConfig, globalIgnores } from 'eslint/config';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 type ConfigWithExtends = Parameters<typeof defineConfig>[number];
+import perfectionist from 'eslint-plugin-perfectionist';
 import preferArrowFunctions from 'eslint-plugin-prefer-arrow-functions';
 import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 import tseslint from 'typescript-eslint';
+
+const catalogVersion = (pkg: string): string => {
+  const workspace = readFileSync(fileURLToPath(new URL('./pnpm-workspace.yaml', import.meta.url)), 'utf8');
+  const pattern = new RegExp(`^\\s*['"]?${pkg.replace(/[/@]/g, '\\$&')}['"]?:\\s*\\^?([\\d.]+)\\s*$`, 'm');
+  const match = pattern.exec(workspace);
+  if (!match?.[1]) throw new Error(`pnpm-workspace.yaml: catalog entry for "${pkg}" not found`);
+  return match[1];
+};
 
 const arrowFunctionsPlugin: ESLint.Plugin = {
   rules: preferArrowFunctions.rules as ESLint.Plugin['rules'],
@@ -15,6 +27,10 @@ const arrowFunctionsPlugin: ESLint.Plugin = {
 const reactRecommended = react.configs.flat.recommended;
 if (!reactRecommended) {
   throw new Error('eslint-plugin-react: configs.flat.recommended is missing');
+}
+const reactJsxRuntime = react.configs.flat['jsx-runtime'];
+if (!reactJsxRuntime) {
+  throw new Error('eslint-plugin-react: configs.flat[jsx-runtime] is missing');
 }
 
 const ignoresConfig = globalIgnores([
@@ -37,21 +53,21 @@ const baseConfig = {
   plugins: { 'prefer-arrow-functions': arrowFunctionsPlugin },
   rules: {
     'no-empty-pattern': ['error', { allowObjectPatternsAsParameters: true }],
-    'prefer-arrow-functions/prefer-arrow-functions': ['error', { returnStyle: 'implicit' }],
     'no-restricted-syntax': [
       'error',
-      { selector: 'FunctionDeclaration', message: arrowOnlyMessage },
+      { message: arrowOnlyMessage, selector: 'FunctionDeclaration' },
       {
-        selector: ':not(MethodDefinition, Property[method=true]) > FunctionExpression',
         message: arrowOnlyMessage,
+        selector: ':not(MethodDefinition, Property[method=true]) > FunctionExpression',
       },
     ],
+    'prefer-arrow-functions/prefer-arrow-functions': ['error', { returnStyle: 'implicit' }],
   },
 } satisfies ConfigWithExtends;
 
 const typescriptConfig = {
-  files: ['**/*.{ts,tsx}'],
   extends: [tseslint.configs.strictTypeChecked],
+  files: ['**/*.{ts,tsx}'],
   languageOptions: {
     parserOptions: {
       projectService: true,
@@ -59,21 +75,19 @@ const typescriptConfig = {
     },
   },
   rules: {
-    '@typescript-eslint/no-unused-vars': [
-      'error',
-      { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
-    ],
     '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
   },
 } satisfies ConfigWithExtends;
 
 const reactConfig = {
+  extends: [reactRecommended, reactJsxRuntime, reactHooks.configs.flat['recommended-latest']],
   files: ['**/src/**/*.{ts,tsx}'],
-  extends: [reactRecommended, reactHooks.configs.flat['recommended-latest']],
-  settings: { react: { version: '19.0' } },
-  rules: {
-    'react/react-in-jsx-scope': 'off',
-  },
+  settings: { react: { version: catalogVersion('react') } },
 } satisfies ConfigWithExtends;
 
-export default defineConfig(ignoresConfig, baseConfig, typescriptConfig, reactConfig);
+const perfectionistConfig = {
+  extends: [perfectionist.configs['recommended-natural']],
+  files: ['**/*.{ts,tsx,js,mjs,cjs}'],
+} satisfies ConfigWithExtends;
+
+export default defineConfig(ignoresConfig, baseConfig, typescriptConfig, reactConfig, perfectionistConfig);

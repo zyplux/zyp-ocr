@@ -4,11 +4,11 @@
 // See plan/totvibe-ocr.md §6 ("Signed callback tokens").
 
 export type CallbackClaims = {
-  userId: string;
-  jobId: string;
-  pageNumber?: number;
   callbackId: string;
   exp: number;
+  jobId: string;
+  pageNumber?: number;
+  userId: string;
 };
 
 const encoder = new TextEncoder();
@@ -28,7 +28,8 @@ const base64UrlDecode = (input: string): Uint8Array => {
   return bytes;
 };
 
-const importKey = async (secret: string): Promise<CryptoKey> => await crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, [
+const importKey = async (secret: string): Promise<CryptoKey> =>
+  await crypto.subtle.importKey('raw', encoder.encode(secret), { hash: 'SHA-256', name: 'HMAC' }, false, [
     'sign',
     'verify',
   ]);

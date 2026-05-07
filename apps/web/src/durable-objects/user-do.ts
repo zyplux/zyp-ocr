@@ -1,51 +1,52 @@
 import { DurableObject } from 'cloudflare:workers';
 import { ulid } from 'ulid';
+
 import { type CallbackClaims, signCallbackToken } from '../lib/callback-token';
 import schemaSql from './user-do.sql?raw';
 
-export type JobStatus = 'pending' | 'processing' | 'done' | 'failed';
-export type PageStatus = 'pending' | 'done' | 'failed';
+export type ApplyCallbackInput = {
+  callbackId: string;
+  error?: string;
+  jobId: string;
+  markdownKey?: string;
+  pageNumber?: number;
+  status: 'done' | 'failed';
+};
+export type CreateJobInput = {
+  sizeBytes: number;
+  // Template using `{jobId}` placeholder; the DO substitutes its generated id.
+  sourceKeyTemplate: string;
+  totalPages: number;
+};
 
 export type JobRow = {
-  id: string;
-  status: JobStatus;
-  source_key: string;
-  size_bytes: number;
-  total_pages: number;
-  pipeline_id: string | null;
-  error: string | null;
+  completed_at: null | number;
   created_at: number;
-  started_at: number | null;
-  completed_at: number | null;
+  error: null | string;
+  id: string;
+  pipeline_id: null | string;
+  size_bytes: number;
+  source_key: string;
+  started_at: null | number;
+  status: JobStatus;
+  total_pages: number;
 };
 
+export type JobStatus = 'done' | 'failed' | 'pending' | 'processing';
+
 export type PageRow = {
+  error: null | string;
   job_id: string;
+  markdown_key: null | string;
   page_number: number;
   status: PageStatus;
-  markdown_key: string | null;
-  error: string | null;
 };
+
+export type PageStatus = 'done' | 'failed' | 'pending';
 
 export type Snapshot = {
   jobs: JobRow[];
   pages: PageRow[];
-};
-
-export type CreateJobInput = {
-  sizeBytes: number;
-  totalPages: number;
-  // Template using `{jobId}` placeholder; the DO substitutes its generated id.
-  sourceKeyTemplate: string;
-};
-
-export type ApplyCallbackInput = {
-  callbackId: string;
-  jobId: string;
-  pageNumber?: number;
-  status: 'done' | 'failed';
-  markdownKey?: string;
-  error?: string;
 };
 
 type Delta =
@@ -66,50 +67,32 @@ export class UserDO extends DurableObject<Env> {
     });
   }
 
-  private migrate(): void {
-    const statements = schemaSql
-      .split(/;\s*$/m)
-      .map(s => s.trim())
-      .filter(Boolean);
-    for (const stmt of statements) {
-      this.ctx.storage.sql.exec(stmt);
+  override async alarm(): Promise<void> {
+    const now = Date.now();
+    const cutoff = now - this.reconcileTimeoutMs();
+    const stale = this.ctx.storage.sql
+      .exec<JobRow>(
+        `SELECT * FROM jobs
+         WHERE status IN ('pending','processing')
+           AND created_at < ?`,
+        cutoff,
+      )
+      .toArray();
+    for (const job of stale) {
+      this.ctx.storage.sql.exec(
+        `UPDATE jobs SET status = 'failed', error = 'timeout', completed_at = ? WHERE id = ?`,
+        now,
+        job.id,
+      );
+      this.broadcast({ op: 'job-upsert', row: this.requireJob(job.id) });
+    }
+    // Reschedule if anything remains in-flight
+    if (this.countInflight() > 0) {
+      await this.ctx.storage.setAlarm(now + this.reconcileTimeoutMs());
     }
   }
 
   // ---- Public RPC ---------------------------------------------------------
-
-  async createJob(input: CreateJobInput): Promise<{ jobId: string }> {
-    const inflight = this.countInflight();
-    if (inflight >= MAX_INFLIGHT_JOBS) {
-      throw new Error(`too many in-flight jobs (max ${MAX_INFLIGHT_JOBS})`);
-    }
-    const jobId = ulid();
-    const sourceKey = input.sourceKeyTemplate.replace('{jobId}', jobId);
-    const now = Date.now();
-    this.ctx.storage.sql.exec(
-      `INSERT INTO jobs (id, status, source_key, size_bytes, total_pages, created_at)
-       VALUES (?, 'pending', ?, ?, ?, ?)`,
-      jobId,
-      sourceKey,
-      input.sizeBytes,
-      input.totalPages,
-      now,
-    );
-    for (let n = 1; n <= input.totalPages; n++) {
-      this.ctx.storage.sql.exec(
-        `INSERT INTO job_pages (job_id, page_number, status) VALUES (?, ?, 'pending')`,
-        jobId,
-        n,
-      );
-    }
-    this.broadcast({ op: 'job-upsert', row: this.requireJob(jobId) });
-    for (let n = 1; n <= input.totalPages; n++) {
-      this.broadcast({ op: 'page-upsert', row: this.requirePage(jobId, n) });
-    }
-    await this.scheduleReconcile();
-    this.ctx.waitUntil(this.submitToPipeline(jobId));
-    return { jobId };
-  }
 
   applyCallback(input: ApplyCallbackInput): Promise<void> {
     const seen = this.ctx.storage.sql
@@ -152,6 +135,47 @@ export class UserDO extends DurableObject<Env> {
     return Promise.resolve();
   }
 
+  async createJob(input: CreateJobInput): Promise<{ jobId: string }> {
+    const inflight = this.countInflight();
+    if (inflight >= MAX_INFLIGHT_JOBS) {
+      throw new Error(`too many in-flight jobs (max ${MAX_INFLIGHT_JOBS})`);
+    }
+    const jobId = ulid();
+    const sourceKey = input.sourceKeyTemplate.replace('{jobId}', jobId);
+    const now = Date.now();
+    this.ctx.storage.sql.exec(
+      `INSERT INTO jobs (id, status, source_key, size_bytes, total_pages, created_at)
+       VALUES (?, 'pending', ?, ?, ?, ?)`,
+      jobId,
+      sourceKey,
+      input.sizeBytes,
+      input.totalPages,
+      now,
+    );
+    for (let n = 1; n <= input.totalPages; n++) {
+      this.ctx.storage.sql.exec(
+        `INSERT INTO job_pages (job_id, page_number, status) VALUES (?, ?, 'pending')`,
+        jobId,
+        n,
+      );
+    }
+    this.broadcast({ op: 'job-upsert', row: this.requireJob(jobId) });
+    for (let n = 1; n <= input.totalPages; n++) {
+      this.broadcast({ op: 'page-upsert', row: this.requirePage(jobId, n) });
+    }
+    await this.scheduleReconcile();
+    this.ctx.waitUntil(this.submitToPipeline(jobId));
+    return { jobId };
+  }
+
+  override fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    if (url.pathname === '/ws' && request.headers.get('Upgrade') === 'websocket') {
+      return Promise.resolve(this.handleWebSocketUpgrade());
+    }
+    return Promise.resolve(new Response('not found', { status: 404 }));
+  }
+
   setPipelineId(jobId: string, pipelineId: string): Promise<void> {
     this.ctx.storage.sql.exec(
       `UPDATE jobs SET pipeline_id = ?, status = 'processing', started_at = ? WHERE id = ?`,
@@ -163,10 +187,6 @@ export class UserDO extends DurableObject<Env> {
     return Promise.resolve();
   }
 
-  snapshot(): Promise<Snapshot> {
-    return Promise.resolve(this.readSnapshot());
-  }
-
   async signTokenFor(claims: Omit<CallbackClaims, 'exp'>): Promise<string> {
     const exp = Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS;
     return await signCallbackToken({ ...claims, exp }, this.env.CALLBACK_HMAC_SECRET);
@@ -174,12 +194,45 @@ export class UserDO extends DurableObject<Env> {
 
   // ---- HTTP / WebSocket ---------------------------------------------------
 
-  override fetch(request: Request): Promise<Response> {
-    const url = new URL(request.url);
-    if (url.pathname === '/ws' && request.headers.get('Upgrade') === 'websocket') {
-      return Promise.resolve(this.handleWebSocketUpgrade());
+  snapshot(): Promise<Snapshot> {
+    return Promise.resolve(this.readSnapshot());
+  }
+
+  override webSocketClose(ws: WebSocket): void {
+    try {
+      ws.close();
+    } catch {
+      /* noop */
     }
-    return Promise.resolve(new Response('not found', { status: 404 }));
+  }
+
+  private broadcast(delta: Delta): void {
+    const message = JSON.stringify(delta);
+    for (const ws of this.ctx.getWebSockets()) {
+      try {
+        ws.send(message);
+      } catch {
+        /* hibernating sockets surface errors lazily; ignore */
+      }
+    }
+  }
+
+  // ---- Alarm reconcile ----------------------------------------------------
+
+  private countInflight(): number {
+    const row = this.ctx.storage.sql
+      .exec(`SELECT count(*) as c FROM jobs WHERE status IN ('pending','processing')`)
+      .toArray()[0] as undefined | { c: number };
+    return row?.c ?? 0;
+  }
+
+  // ---- Internals ----------------------------------------------------------
+
+  private deriveJobStatus(jobId: string): JobStatus {
+    const failed = this.ctx.storage.sql
+      .exec(`SELECT count(*) as c FROM job_pages WHERE job_id = ? AND status = 'failed'`, jobId)
+      .toArray()[0] as undefined | { c: number };
+    return (failed?.c ?? 0) > 0 ? 'failed' : 'done';
   }
 
   private handleWebSocketUpgrade(): Response {
@@ -192,115 +245,38 @@ export class UserDO extends DurableObject<Env> {
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  override webSocketMessage(_ws: WebSocket, _message: string | ArrayBuffer): void {
-    // Clients are passive receivers in v0.x.
-  }
-
-  override webSocketClose(ws: WebSocket): void {
-    try {
-      ws.close();
-    } catch {
-      /* noop */
-    }
-  }
-
-  // ---- Alarm reconcile ----------------------------------------------------
-
-  override async alarm(): Promise<void> {
-    const now = Date.now();
-    const cutoff = now - this.reconcileTimeoutMs();
-    const stale = this.ctx.storage.sql
-      .exec<JobRow>(
-        `SELECT * FROM jobs
-         WHERE status IN ('pending','processing')
-           AND created_at < ?`,
-        cutoff,
-      )
-      .toArray();
-    for (const job of stale) {
-      this.ctx.storage.sql.exec(
-        `UPDATE jobs SET status = 'failed', error = 'timeout', completed_at = ? WHERE id = ?`,
-        now,
-        job.id,
-      );
-      this.broadcast({ op: 'job-upsert', row: this.requireJob(job.id) });
-    }
-    // Reschedule if anything remains in-flight
-    if (this.countInflight() > 0) {
-      await this.ctx.storage.setAlarm(now + this.reconcileTimeoutMs());
-    }
-  }
-
-  // ---- Internals ----------------------------------------------------------
-
-  private async scheduleReconcile(): Promise<void> {
-    const existing = await this.ctx.storage.getAlarm();
-    if (existing != null) return;
-    await this.ctx.storage.setAlarm(Date.now() + this.reconcileTimeoutMs());
-  }
-
-  private reconcileTimeoutMs(): number {
-    const seconds = Number.parseInt(this.env.RECONCILE_TIMEOUT_SECONDS, 10);
-    return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 3600 * 1000;
-  }
-
-  private async submitToPipeline(jobId: string): Promise<void> {
-    const job = this.requireJob(jobId);
-    const callbackId = ulid();
-    const token = await this.signTokenFor({
-      userId: DEFAULT_USER_ID,
-      jobId,
-      callbackId,
-    });
-    const callbackBase = this.env.WORKER_INTERNAL_BASE ?? this.env.PUBLIC_BASE;
-    const payload = {
-      job_id: jobId,
-      source_key: job.source_key,
-      callback_url: `${callbackBase}/api/pipeline/callback`,
-      callback_token: token,
-    };
-    try {
-      const res = await fetch(`${this.env.PIPELINE_BASE}/submit`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`pipeline /submit: ${res.status} ${body}`);
-      }
-      const ack: { pipeline_id: string } = await res.json();
-      await this.setPipelineId(jobId, ack.pipeline_id);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.ctx.storage.sql.exec(
-        `UPDATE jobs SET status = 'failed', error = ?, completed_at = ? WHERE id = ?`,
-        message,
-        Date.now(),
-        jobId,
-      );
-      this.broadcast({ op: 'job-upsert', row: this.requireJob(jobId) });
-    }
-  }
-
   private maybeCompleteJob(jobId: string): void {
     const pending = this.ctx.storage.sql
       .exec(`SELECT count(*) as c FROM job_pages WHERE job_id = ? AND status = 'pending'`, jobId)
-      .toArray()[0] as { c: number } | undefined;
+      .toArray()[0] as undefined | { c: number };
     if (!pending || pending.c > 0) return;
     const failed = this.ctx.storage.sql
       .exec(`SELECT count(*) as c FROM job_pages WHERE job_id = ? AND status = 'failed'`, jobId)
-      .toArray()[0] as { c: number } | undefined;
+      .toArray()[0] as undefined | { c: number };
     const status: JobStatus = (failed?.c ?? 0) > 0 ? 'failed' : 'done';
     this.ctx.storage.sql.exec(`UPDATE jobs SET status = ?, completed_at = ? WHERE id = ?`, status, Date.now(), jobId);
     this.broadcast({ op: 'job-upsert', row: this.requireJob(jobId) });
   }
 
-  private deriveJobStatus(jobId: string): JobStatus {
-    const failed = this.ctx.storage.sql
-      .exec(`SELECT count(*) as c FROM job_pages WHERE job_id = ? AND status = 'failed'`, jobId)
-      .toArray()[0] as { c: number } | undefined;
-    return (failed?.c ?? 0) > 0 ? 'failed' : 'done';
+  private migrate(): void {
+    const statements = schemaSql
+      .split(/;\s*$/m)
+      .map(s => s.trim())
+      .filter(Boolean);
+    for (const stmt of statements) {
+      this.ctx.storage.sql.exec(stmt);
+    }
+  }
+
+  private readSnapshot(): Snapshot {
+    const jobs = this.ctx.storage.sql.exec<JobRow>(`SELECT * FROM jobs ORDER BY created_at DESC`).toArray();
+    const pages = this.ctx.storage.sql.exec<PageRow>(`SELECT * FROM job_pages ORDER BY job_id, page_number`).toArray();
+    return { jobs, pages };
+  }
+
+  private reconcileTimeoutMs(): number {
+    const seconds = Number.parseInt(this.env.RECONCILE_TIMEOUT_SECONDS, 10);
+    return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 3600 * 1000;
   }
 
   private requireJob(jobId: string): JobRow {
@@ -319,27 +295,48 @@ export class UserDO extends DurableObject<Env> {
     return row;
   }
 
-  private readSnapshot(): Snapshot {
-    const jobs = this.ctx.storage.sql.exec<JobRow>(`SELECT * FROM jobs ORDER BY created_at DESC`).toArray();
-    const pages = this.ctx.storage.sql.exec<PageRow>(`SELECT * FROM job_pages ORDER BY job_id, page_number`).toArray();
-    return { jobs, pages };
+  private async scheduleReconcile(): Promise<void> {
+    const existing = await this.ctx.storage.getAlarm();
+    if (existing != null) return;
+    await this.ctx.storage.setAlarm(Date.now() + this.reconcileTimeoutMs());
   }
 
-  private countInflight(): number {
-    const row = this.ctx.storage.sql
-      .exec(`SELECT count(*) as c FROM jobs WHERE status IN ('pending','processing')`)
-      .toArray()[0] as { c: number } | undefined;
-    return row?.c ?? 0;
-  }
-
-  private broadcast(delta: Delta): void {
-    const message = JSON.stringify(delta);
-    for (const ws of this.ctx.getWebSockets()) {
-      try {
-        ws.send(message);
-      } catch {
-        /* hibernating sockets surface errors lazily; ignore */
+  private async submitToPipeline(jobId: string): Promise<void> {
+    const job = this.requireJob(jobId);
+    const callbackId = ulid();
+    const token = await this.signTokenFor({
+      callbackId,
+      jobId,
+      userId: DEFAULT_USER_ID,
+    });
+    const callbackBase = this.env.WORKER_INTERNAL_BASE ?? this.env.PUBLIC_BASE;
+    const payload = {
+      callback_token: token,
+      callback_url: `${callbackBase}/api/pipeline/callback`,
+      job_id: jobId,
+      source_key: job.source_key,
+    };
+    try {
+      const res = await fetch(`${this.env.PIPELINE_BASE}/submit`, {
+        body: JSON.stringify(payload),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`pipeline /submit: ${res.status} ${body}`);
       }
+      const ack: { pipeline_id: string } = await res.json();
+      await this.setPipelineId(jobId, ack.pipeline_id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.ctx.storage.sql.exec(
+        `UPDATE jobs SET status = 'failed', error = ?, completed_at = ? WHERE id = ?`,
+        message,
+        Date.now(),
+        jobId,
+      );
+      this.broadcast({ op: 'job-upsert', row: this.requireJob(jobId) });
     }
   }
 }

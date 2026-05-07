@@ -11,10 +11,10 @@ const config: Config = {
   quoteProps: 'as-needed',
   requirePragma: false,
   semi: true,
+  singleQuote: true,
   tabWidth: 2,
   trailingComma: 'all',
   useTabs: false,
-  singleQuote: true,
 };
 
 export default config;

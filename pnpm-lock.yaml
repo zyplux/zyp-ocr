@@ -122,6 +122,9 @@ importers:
       eslint:
         specifier: 'catalog:'
         version: 10.3.0(jiti@2.7.0)
+      eslint-plugin-perfectionist:
+        specifier: ^5.9.0
+        version: 5.9.0(eslint@10.3.0(jiti@2.7.0))(typescript@6.0.3)
       eslint-plugin-prefer-arrow-functions:
         specifier: ^3.9.1
         version: 3.9.1(eslint@10.3.0(jiti@2.7.0))(typescript@6.0.3)
@@ -2045,6 +2048,12 @@ packages:
     resolution: {integrity: sha512-/veY75JbMK4j1yjvuUxuVsiS/hr/4iHs9FTT6cgTexxdE0Ly/glccBAkloH/DofkjRbZU3bnoj38mOmhkZ0lHw==}
     engines: {node: '>=12'}
 
+  eslint-plugin-perfectionist@5.9.0:
+    resolution: {integrity: sha512-8TWzg02zmnBdZwCkWLi8jhzqXI+fE7Z/RwV8SL6xD45tJ8Bp3wGuYL2XtQgfe/Wd0eBqOUX+s6ey73IyszvKTA==}
+    engines: {node: ^20.0.0 || >=22.0.0}
+    peerDependencies:
+      eslint: ^8.45.0 || ^9.0.0 || ^10.0.0
+
   eslint-plugin-prefer-arrow-functions@3.9.1:
     resolution: {integrity: sha512-Mr9Ia8i5ohfCMcZBRedXXWdDJIo30gdKdPfRQ5DtO62yzogB5ErVGwQWPz+ycRlQPKpCAlBHpJdp1TCeCtt+YA==}
     engines: {node: '>=18.0.0'}
@@ -2812,6 +2821,10 @@ packages:
 
   natural-compare@1.4.0:
     resolution: {integrity: sha512-OWND8ei3VtNC9h7V60qff3SVobHr996CTwgxubgyQYEpg290h9J0buyECNNJexkFm5sOajh5G116RYA1c8ZMSw==}
+
+  natural-orderby@5.0.0:
+    resolution: {integrity: sha512-kKHJhxwpR/Okycz4HhQKKlhWe4ASEfPgkSWNmKFHd7+ezuQlxkA5cM3+XkBPvm1gmHen3w53qsYAv+8GwRrBlg==}
+    engines: {node: '>=18'}
 
   node-exports-info@1.6.0:
     resolution: {integrity: sha512-pyFS63ptit/P5WqUkt+UUfe+4oevH+bFeIiPPdfb0pFeYEu/1ELnJu5l+5EcTKYL5M7zaAa7S8ddywgXypqKCw==}
@@ -5876,6 +5889,15 @@ snapshots:
 
   escape-string-regexp@5.0.0: {}
 
+  eslint-plugin-perfectionist@5.9.0(eslint@10.3.0(jiti@2.7.0))(typescript@6.0.3):
+    dependencies:
+      '@typescript-eslint/utils': 8.59.2(eslint@10.3.0(jiti@2.7.0))(typescript@6.0.3)
+      eslint: 10.3.0(jiti@2.7.0)
+      natural-orderby: 5.0.0
+    transitivePeerDependencies:
+      - supports-color
+      - typescript
+
   eslint-plugin-prefer-arrow-functions@3.9.1(eslint@10.3.0(jiti@2.7.0))(typescript@6.0.3):
     dependencies:
       '@typescript-eslint/types': 8.59.2
@@ -6935,6 +6957,8 @@ snapshots:
   nanoid@3.3.12: {}
 
   natural-compare@1.4.0: {}
+
+  natural-orderby@5.0.0: {}
 
   node-exports-info@1.6.0:
     dependencies:

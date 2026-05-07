@@ -3,24 +3,25 @@
 // Exponential-backoff reconnect; refetches the snapshot after every reconnect.
 
 import { createCollection } from '@tanstack/db';
+
 import type { JobRow, PageRow, Snapshot } from '../durable-objects/user-do';
 
 type Delta =
-  | { op: 'snapshot'; snapshot: Snapshot }
   | { op: 'job-upsert'; row: JobRow }
-  | { op: 'page-upsert'; row: PageRow };
+  | { op: 'page-upsert'; row: PageRow }
+  | { op: 'snapshot'; snapshot: Snapshot };
 
 const pageId = (job: string, n: number) => `${job}#${n}`;
 
 type Writer<T extends object> = {
   begin: () => void;
-  write: (msg: { type: 'insert' | 'update'; value: T }) => void;
   commit: () => void;
   markReady: () => void;
+  write: (msg: { type: 'insert' | 'update'; value: T }) => void;
 };
 
-let jobsWriter: Writer<JobRow> | null = null;
-let pagesWriter: Writer<PageRow> | null = null;
+let jobsWriter: null | Writer<JobRow> = null;
+let pagesWriter: null | Writer<PageRow> = null;
 let teardown: (() => void) | null = null;
 
 const applySnapshot = (snap: Snapshot): void => {
@@ -54,11 +55,11 @@ const applyDelta = (delta: Delta): void => {
   }
 };
 
-const openLiveStream = (): () => void => {
+const openLiveStream = (): (() => void) => {
   let closed = false;
-  let socket: WebSocket | null = null;
+  let socket: null | WebSocket = null;
   let attempt = 0;
-  let timer: ReturnType<typeof setTimeout> | null = null;
+  let timer: null | ReturnType<typeof setTimeout> = null;
 
   const fetchSnapshot = async () => {
     const res = await fetch('/api/me/items', { credentials: 'same-origin' });
@@ -122,22 +123,22 @@ const maybeStart = (): void => {
 };
 
 export const jobsCollection = createCollection<JobRow, string>({
-  id: 'jobs',
   getKey: row => row.id,
+  id: 'jobs',
   sync: {
-    sync: ({ begin, write, commit, markReady }) => {
-      jobsWriter = { begin, write: write as Writer<JobRow>['write'], commit, markReady };
+    sync: ({ begin, commit, markReady, write }) => {
+      jobsWriter = { begin, commit, markReady, write: write as Writer<JobRow>['write'] };
       maybeStart();
     },
   },
 });
 
 export const pagesCollection = createCollection<PageRow, string>({
-  id: 'job-pages',
   getKey: row => pageId(row.job_id, row.page_number),
+  id: 'job-pages',
   sync: {
-    sync: ({ begin, write, commit, markReady }) => {
-      pagesWriter = { begin, write: write as Writer<PageRow>['write'], commit, markReady };
+    sync: ({ begin, commit, markReady, write }) => {
+      pagesWriter = { begin, commit, markReady, write: write as Writer<PageRow>['write'] };
       maybeStart();
     },
   },

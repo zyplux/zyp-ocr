@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
+
 import { signCallbackToken, verifyCallbackToken } from './callback-token';
 
 describe('callback-token', () => {
   const claims = {
-    userId: 'default',
-    jobId: '01HABC',
-    pageNumber: 3,
     callbackId: '01CBID',
     exp: Math.floor(Date.now() / 1000) + 60,
+    jobId: '01HABC',
+    pageNumber: 3,
+    userId: 'default',
   };
 
   it('round-trips with a valid secret', async () => {

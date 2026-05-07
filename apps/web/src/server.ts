@@ -1,10 +1,12 @@
-import { createStartHandler, defaultStreamHandler } from '@tanstack/react-start/server';
 import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { createStartHandler, defaultStreamHandler } from '@tanstack/react-start/server';
+
+import type { ApplyCallbackInput } from './durable-objects/user-do';
+
+import { PipelineCallback } from './contracts';
 import { verifyCallbackToken } from './lib/callback-token';
 import { estimatePageCount } from './lib/pdf-pages';
 import { makeS3Client, pageKey, sourceKey } from './lib/s3';
-import { PipelineCallback } from './contracts';
-import type { ApplyCallbackInput } from './durable-objects/user-do';
 
 export { UserDO } from './durable-objects/user-do';
 
@@ -16,9 +18,10 @@ const DEFAULT_USER_DO = 'default';
 
 const userStub = (env: Env) => env.USER_DO.get(env.USER_DO.idFromName(DEFAULT_USER_DO));
 
-const jsonResponse = (body: unknown, status = 200): Response => new Response(JSON.stringify(body), {
-    status,
+const jsonResponse = (body: unknown, status = 200): Response =>
+  new Response(JSON.stringify(body), {
     headers: { 'content-type': 'application/json' },
+    status,
   });
 
 const handleCreateJob = async (request: Request, env: Env): Promise<Response> => {
@@ -46,16 +49,16 @@ const handleCreateJob = async (request: Request, env: Env): Promise<Response> =>
   const stub = userStub(env);
   const result = await stub.createJob({
     sizeBytes: bytes.byteLength,
-    totalPages,
     sourceKeyTemplate: 'jobs/{jobId}/source.pdf',
+    totalPages,
   });
   const s3 = makeS3Client(env);
   await s3.send(
     new PutObjectCommand({
-      Bucket: env.S3_BUCKET,
-      Key: sourceKey(result.jobId),
       Body: bytes,
+      Bucket: env.S3_BUCKET,
       ContentType: 'application/pdf',
+      Key: sourceKey(result.jobId),
     }),
   );
   return jsonResponse({ jobId: result.jobId });
@@ -91,7 +94,7 @@ const handlePipelineCallback = async (request: Request, env: Env): Promise<Respo
   const raw = await request.json();
   const parsed = PipelineCallback.safeParse(raw);
   if (!parsed.success) {
-    return jsonResponse({ error: 'invalid callback payload', details: parsed.error.issues }, 400);
+    return jsonResponse({ details: parsed.error.issues, error: 'invalid callback payload' }, 400);
   }
   if (parsed.data.job_id !== claims.jobId) {
     return jsonResponse({ error: 'token / payload job mismatch' }, 403);
@@ -116,11 +119,11 @@ const proxyBlob = async (env: Env, key: string, contentType: string): Promise<Re
     const body = obj.Body as ReadableStream | undefined;
     if (!body) return new Response('not found', { status: 404 });
     return new Response(body, {
-      status: 200,
       headers: {
-        'content-type': contentType,
         'cache-control': 'private, max-age=60',
+        'content-type': contentType,
       },
+      status: 200,
     });
   } catch {
     return new Response('not found', { status: 404 });
@@ -130,7 +133,7 @@ const proxyBlob = async (env: Env, key: string, contentType: string): Promise<Re
 const SOURCE_RE = /^\/api\/jobs\/([^/]+)\/source$/;
 const PAGE_RE = /^\/api\/jobs\/([^/]+)\/pages\/(\d+)$/;
 
-const routeApi = async (request: Request, env: Env): Promise<Response | null> => {
+const routeApi = async (request: Request, env: Env): Promise<null | Response> => {
   const url = new URL(request.url);
   const { pathname } = url;
   if (!pathname.startsWith('/api/')) return null;

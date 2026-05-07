@@ -15,10 +15,10 @@
     "format": "prettier --write ."
   },
   "devDependencies": {
-    "@eslint/config-helpers": "catalog:",
     "@eslint/js": "catalog:",
     "@types/node": "catalog:",
     "eslint": "catalog:",
+    "eslint-plugin-perfectionist": "^5.9.0",
     "eslint-plugin-prefer-arrow-functions": "^3.9.1",
     "eslint-plugin-react": "catalog:",
     "eslint-plugin-react-hooks": "catalog:",

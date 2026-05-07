@@ -1,9 +1,11 @@
-import { Link, createFileRoute } from '@tanstack/react-router';
 import { useLiveQuery } from '@tanstack/react-db';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
-import { Markdown } from '../../client/markdown';
-import { jobsCollection, pagesCollection } from '../../client/jobs-collection';
+
 import type { PageRow } from '../../durable-objects/user-do';
+
+import { jobsCollection, pagesCollection } from '../../client/jobs-collection';
+import { Markdown } from '../../client/markdown';
 
 const JobPage = () => {
   const params: { jobId: string } = Route.useParams();
@@ -24,7 +26,7 @@ const JobPage = () => {
   const job = jobMatches[0];
 
   return (
-    <main style={{ padding: '2rem', fontFamily: 'system-ui, sans-serif' }}>
+    <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>
       <p>
         <Link to="/">← Back</Link>
       </p>
@@ -38,20 +40,20 @@ const JobPage = () => {
         <p>loading…</p>
       )}
       <p>
-        <a href={`/api/jobs/${jobId}/source`} target="_blank" rel="noreferrer">
+        <a href={`/api/jobs/${jobId}/source`} rel="noreferrer" target="_blank">
           original PDF
         </a>
       </p>
       <hr />
       {pages.map(page => (
-        <PageBlock key={page.page_number} jobId={jobId} page={page} />
+        <PageBlock jobId={jobId} key={page.page_number} page={page} />
       ))}
     </main>
   );
 };
 
 const PageBlock = ({ jobId, page }: { jobId: string; page: PageRow }) => {
-  const [markdown, setMarkdown] = useState<string | null>(null);
+  const [markdown, setMarkdown] = useState<null | string>(null);
 
   useEffect(() => {
     if (page.status !== 'done' || !page.markdown_key) return;
