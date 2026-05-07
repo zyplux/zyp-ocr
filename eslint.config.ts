@@ -10,11 +10,15 @@ import perfectionist from 'eslint-plugin-perfectionist';
 import preferArrowFunctions from 'eslint-plugin-prefer-arrow-functions';
 import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
+import unicorn from 'eslint-plugin-unicorn';
 import tseslint from 'typescript-eslint';
 
 const catalogVersion = (pkg: string): string => {
-  const workspace = readFileSync(fileURLToPath(new URL('./pnpm-workspace.yaml', import.meta.url)), 'utf8');
-  const pattern = new RegExp(`^\\s*['"]?${pkg.replace(/[/@]/g, '\\$&')}['"]?:\\s*\\^?([\\d.]+)\\s*$`, 'm');
+  const workspace = readFileSync(fileURLToPath(new URL('pnpm-workspace.yaml', import.meta.url)), 'utf8');
+  const pattern = new RegExp(
+    String.raw`^\s*['"]?${pkg.replaceAll(/[/@]/g, String.raw`\$&`)}['"]?:\s*\^?([\d.]+)\s*$`,
+    'm',
+  );
   const match = pattern.exec(workspace);
   if (!match?.[1]) throw new Error(`pnpm-workspace.yaml: catalog entry for "${pkg}" not found`);
   return match[1];
@@ -66,7 +70,7 @@ const baseConfig = {
 } satisfies ConfigWithExtends;
 
 const typescriptConfig = {
-  extends: [tseslint.configs.strictTypeChecked],
+  extends: [tseslint.configs.strictTypeChecked, tseslint.configs.stylisticTypeChecked],
   files: ['**/*.{ts,tsx}'],
   languageOptions: {
     parserOptions: {
@@ -75,6 +79,7 @@ const typescriptConfig = {
     },
   },
   rules: {
+    '@typescript-eslint/consistent-type-definitions': ['error', 'type'],
     '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
   },
 } satisfies ConfigWithExtends;
@@ -90,4 +95,34 @@ const perfectionistConfig = {
   files: ['**/*.{ts,tsx,js,mjs,cjs}'],
 } satisfies ConfigWithExtends;
 
-export default defineConfig(ignoresConfig, baseConfig, typescriptConfig, reactConfig, perfectionistConfig);
+const unicornConfig = {
+  extends: [unicorn.configs.recommended],
+  files: ['**/*.{ts,tsx,js,mjs,cjs}'],
+  rules: {
+    'unicorn/catch-error-name': 'off',
+    'unicorn/prevent-abbreviations': 'off',
+  },
+} satisfies ConfigWithExtends;
+
+const tanstackRoutesConfig = {
+  files: ['**/routes/**/*.{ts,tsx}'],
+  rules: {
+    'unicorn/filename-case': [
+      'error',
+      {
+        case: 'kebabCase',
+        ignore: [/^\$[a-z][\dA-Za-z]*\.tsx?$/],
+      },
+    ],
+  },
+} satisfies ConfigWithExtends;
+
+export default defineConfig(
+  ignoresConfig,
+  baseConfig,
+  typescriptConfig,
+  reactConfig,
+  perfectionistConfig,
+  unicornConfig,
+  tanstackRoutesConfig,
+);
