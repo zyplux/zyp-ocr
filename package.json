@@ -10,7 +10,7 @@
   "scripts": {
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "tsc -p . && pnpm -r typecheck",
     "test": "pnpm -r test",
     "format": "prettier --write ."
   },
