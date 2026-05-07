@@ -153,13 +153,16 @@ async function routeApi(request: Request, env: Env): Promise<Response | null> {
   }
   const sourceMatch = SOURCE_RE.exec(pathname);
   if (sourceMatch && request.method === 'GET') {
-    return await proxyBlob(env, sourceKey(sourceMatch[1]!), 'application/pdf');
+    const [, jobId] = sourceMatch;
+    if (jobId) return await proxyBlob(env, sourceKey(jobId), 'application/pdf');
   }
   const pageMatch = PAGE_RE.exec(pathname);
   if (pageMatch && request.method === 'GET') {
-    const jobId = pageMatch[1]!;
-    const n = Number.parseInt(pageMatch[2]!, 10);
-    return await proxyBlob(env, pageKey(jobId, n), 'text/markdown; charset=utf-8');
+    const [, jobId, pageStr] = pageMatch;
+    if (jobId && pageStr) {
+      const n = Number.parseInt(pageStr, 10);
+      return await proxyBlob(env, pageKey(jobId, n), 'text/markdown; charset=utf-8');
+    }
   }
   return new Response('not found', { status: 404 });
 }

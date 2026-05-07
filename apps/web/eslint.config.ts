@@ -21,7 +21,7 @@ export default tseslint.config(
   // Type-aware rules apply only to source files in the TS project.
   {
     files: ['src/**/*.{ts,tsx}'],
-    extends: [...tseslint.configs.recommendedTypeChecked],
+    extends: [...tseslint.configs.strictTypeChecked],
     languageOptions: {
       parserOptions: {
         projectService: true,
@@ -41,11 +41,12 @@ export default tseslint.config(
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
       ],
+      '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
     },
   },
   // Config files use plain JS — type-aware rules off.
   {
-    files: ['*.config.{js,mjs,cjs,ts}', 'eslint.config.js', 'prettier.config.js'],
+    files: ['*.config.{js,mjs,cjs}'],
     ...tseslint.configs.disableTypeChecked,
   },
 );

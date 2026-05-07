@@ -240,7 +240,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private reconcileTimeoutMs(): number {
-    const seconds = Number.parseInt(this.env.RECONCILE_TIMEOUT_SECONDS ?? '3600', 10);
+    const seconds = Number.parseInt(this.env.RECONCILE_TIMEOUT_SECONDS, 10);
     return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 3600 * 1000;
   }
 

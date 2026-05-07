@@ -22,6 +22,7 @@ dist/
 .eslintcache
 coverage/
 .nyc_output/
+*.tsbuildinfo
 
 # Markdown linter
 .rumdl_cache/

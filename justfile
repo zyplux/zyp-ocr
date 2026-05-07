@@ -1,6 +1,11 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 set dotenv-load := true
 
+alias l := lint
+alias tc := typecheck
+alias t := test
+alias i := install
+
 compose := "podman compose -f infra/compose.yaml"
 dev_stack := compose + " -f infra/compose.dev.yaml"
 mock_stack := compose + " -f infra/compose.mock.yaml"
