@@ -2,19 +2,19 @@
 // Hydrates via GET /api/me/items, stays live via WS /api/me/ws.
 // Exponential-backoff reconnect; refetches the snapshot after every reconnect.
 
-import { createCollection } from "@tanstack/db";
-import type { JobRow, PageRow, Snapshot } from "../durable-objects/user-do";
+import { createCollection } from '@tanstack/db';
+import type { JobRow, PageRow, Snapshot } from '../durable-objects/user-do';
 
 type Delta =
-  | { op: "snapshot"; snapshot: Snapshot }
-  | { op: "job-upsert"; row: JobRow }
-  | { op: "page-upsert"; row: PageRow };
+  | { op: 'snapshot'; snapshot: Snapshot }
+  | { op: 'job-upsert'; row: JobRow }
+  | { op: 'page-upsert'; row: PageRow };
 
 const pageId = (job: string, n: number) => `${job}#${n}`;
 
 type Writer<T extends object> = {
   begin: () => void;
-  write: (msg: { type: "insert" | "update"; value: T }) => void;
+  write: (msg: { type: 'insert' | 'update'; value: T }) => void;
   commit: () => void;
   markReady: () => void;
 };
@@ -26,30 +26,30 @@ let teardown: (() => void) | null = null;
 function applySnapshot(snap: Snapshot): void {
   if (jobsWriter) {
     jobsWriter.begin();
-    for (const row of snap.jobs) jobsWriter.write({ type: "insert", value: row });
+    for (const row of snap.jobs) jobsWriter.write({ type: 'insert', value: row });
     jobsWriter.commit();
   }
   if (pagesWriter) {
     pagesWriter.begin();
-    for (const row of snap.pages) pagesWriter.write({ type: "insert", value: row });
+    for (const row of snap.pages) pagesWriter.write({ type: 'insert', value: row });
     pagesWriter.commit();
   }
 }
 
 function applyDelta(delta: Delta): void {
-  if (delta.op === "snapshot") {
+  if (delta.op === 'snapshot') {
     applySnapshot(delta.snapshot);
     return;
   }
-  if (delta.op === "job-upsert" && jobsWriter) {
+  if (delta.op === 'job-upsert' && jobsWriter) {
     jobsWriter.begin();
-    jobsWriter.write({ type: "update", value: delta.row });
+    jobsWriter.write({ type: 'update', value: delta.row });
     jobsWriter.commit();
     return;
   }
-  if (delta.op === "page-upsert" && pagesWriter) {
+  if (delta.op === 'page-upsert' && pagesWriter) {
     pagesWriter.begin();
-    pagesWriter.write({ type: "update", value: delta.row });
+    pagesWriter.write({ type: 'update', value: delta.row });
     pagesWriter.commit();
   }
 }
@@ -61,7 +61,7 @@ function openLiveStream(): () => void {
   let timer: ReturnType<typeof setTimeout> | null = null;
 
   const fetchSnapshot = async () => {
-    const res = await fetch("/api/me/items", { credentials: "same-origin" });
+    const res = await fetch('/api/me/items', { credentials: 'same-origin' });
     if (!res.ok) throw new Error(`hydrate failed: ${res.status}`);
     const snap: Snapshot = await res.json();
     applySnapshot(snap);
@@ -71,29 +71,31 @@ function openLiveStream(): () => void {
 
   const connect = () => {
     if (closed) return;
-    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const url = `${proto}//${location.host}/api/me/ws`;
     const ws = new WebSocket(url);
     socket = ws;
-    ws.addEventListener("open", () => {
+    ws.addEventListener('open', () => {
       attempt = 0;
     });
-    ws.addEventListener("message", (event) => {
+    ws.addEventListener('message', event => {
       try {
         applyDelta(JSON.parse(event.data as string) as Delta);
       } catch {
         /* ignore malformed frames */
       }
     });
-    ws.addEventListener("close", () => {
+    ws.addEventListener('close', () => {
       if (closed) return;
       const backoff = Math.min(30_000, 500 * 2 ** Math.min(attempt, 6));
       attempt += 1;
       timer = setTimeout(() => {
-        void fetchSnapshot().catch(() => undefined).finally(connect);
+        void fetchSnapshot()
+          .catch(() => undefined)
+          .finally(connect);
       }, backoff);
     });
-    ws.addEventListener("error", () => {
+    ws.addEventListener('error', () => {
       try {
         ws.close();
       } catch {
@@ -102,7 +104,9 @@ function openLiveStream(): () => void {
     });
   };
 
-  void fetchSnapshot().catch(() => undefined).finally(connect);
+  void fetchSnapshot()
+    .catch(() => undefined)
+    .finally(connect);
 
   return () => {
     closed = true;
@@ -118,22 +122,22 @@ function maybeStart(): void {
 }
 
 export const jobsCollection = createCollection<JobRow, string>({
-  id: "jobs",
-  getKey: (row) => row.id,
+  id: 'jobs',
+  getKey: row => row.id,
   sync: {
     sync: ({ begin, write, commit, markReady }) => {
-      jobsWriter = { begin, write: write as Writer<JobRow>["write"], commit, markReady };
+      jobsWriter = { begin, write: write as Writer<JobRow>['write'], commit, markReady };
       maybeStart();
     },
   },
 });
 
 export const pagesCollection = createCollection<PageRow, string>({
-  id: "job-pages",
-  getKey: (row) => pageId(row.job_id, row.page_number),
+  id: 'job-pages',
+  getKey: row => pageId(row.job_id, row.page_number),
   sync: {
     sync: ({ begin, write, commit, markReady }) => {
-      pagesWriter = { begin, write: write as Writer<PageRow>["write"], commit, markReady };
+      pagesWriter = { begin, write: write as Writer<PageRow>['write'], commit, markReady };
       maybeStart();
     },
   },

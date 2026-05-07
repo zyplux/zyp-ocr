@@ -8,7 +8,7 @@ const COUNT_RE = /\/Count\s+(\d+)/g;
 
 export function estimatePageCount(bytes: Uint8Array): number {
   // Search the trailing 64 KiB first — page tree usually lives near the xref.
-  const view = new TextDecoder("latin1").decode(bytes);
+  const view = new TextDecoder('latin1').decode(bytes);
   const counts: number[] = [];
   let typeMatch: RegExpExecArray | null;
   while ((typeMatch = PAGE_TYPE_RE.exec(view)) !== null) {

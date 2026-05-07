@@ -1,13 +1,10 @@
-import { DurableObject } from "cloudflare:workers";
-import { ulid } from "ulid";
-import {
-  type CallbackClaims,
-  signCallbackToken,
-} from "../lib/callback-token";
-import schemaSql from "./user-do.sql?raw";
+import { DurableObject } from 'cloudflare:workers';
+import { ulid } from 'ulid';
+import { type CallbackClaims, signCallbackToken } from '../lib/callback-token';
+import schemaSql from './user-do.sql?raw';
 
-export type JobStatus = "pending" | "processing" | "done" | "failed";
-export type PageStatus = "pending" | "done" | "failed";
+export type JobStatus = 'pending' | 'processing' | 'done' | 'failed';
+export type PageStatus = 'pending' | 'done' | 'failed';
 
 export type JobRow = {
   id: string;
@@ -46,19 +43,19 @@ export type ApplyCallbackInput = {
   callbackId: string;
   jobId: string;
   pageNumber?: number;
-  status: "done" | "failed";
+  status: 'done' | 'failed';
   markdownKey?: string;
   error?: string;
 };
 
 type Delta =
-  | { op: "job-upsert"; row: JobRow }
-  | { op: "page-upsert"; row: PageRow }
-  | { op: "snapshot"; snapshot: Snapshot };
+  | { op: 'job-upsert'; row: JobRow }
+  | { op: 'page-upsert'; row: PageRow }
+  | { op: 'snapshot'; snapshot: Snapshot };
 
 const MAX_INFLIGHT_JOBS = 10;
 const TOKEN_TTL_SECONDS = 24 * 60 * 60;
-const DEFAULT_USER_ID = "default";
+const DEFAULT_USER_ID = 'default';
 
 export class UserDO extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
@@ -72,7 +69,7 @@ export class UserDO extends DurableObject<Env> {
   private migrate(): void {
     const statements = schemaSql
       .split(/;\s*$/m)
-      .map((s) => s.trim())
+      .map(s => s.trim())
       .filter(Boolean);
     for (const stmt of statements) {
       this.ctx.storage.sql.exec(stmt);
@@ -87,7 +84,7 @@ export class UserDO extends DurableObject<Env> {
       throw new Error(`too many in-flight jobs (max ${MAX_INFLIGHT_JOBS})`);
     }
     const jobId = ulid();
-    const sourceKey = input.sourceKeyTemplate.replace("{jobId}", jobId);
+    const sourceKey = input.sourceKeyTemplate.replace('{jobId}', jobId);
     const now = Date.now();
     this.ctx.storage.sql.exec(
       `INSERT INTO jobs (id, status, source_key, size_bytes, total_pages, created_at)
@@ -105,9 +102,9 @@ export class UserDO extends DurableObject<Env> {
         n,
       );
     }
-    this.broadcast({ op: "job-upsert", row: this.requireJob(jobId) });
+    this.broadcast({ op: 'job-upsert', row: this.requireJob(jobId) });
     for (let n = 1; n <= input.totalPages; n++) {
-      this.broadcast({ op: "page-upsert", row: this.requirePage(jobId, n) });
+      this.broadcast({ op: 'page-upsert', row: this.requirePage(jobId, n) });
     }
     await this.scheduleReconcile();
     this.ctx.waitUntil(this.submitToPipeline(jobId));
@@ -125,7 +122,7 @@ export class UserDO extends DurableObject<Env> {
       Date.now(),
     );
 
-    if (typeof input.pageNumber === "number") {
+    if (typeof input.pageNumber === 'number') {
       this.ctx.storage.sql.exec(
         `UPDATE job_pages
          SET status = ?, markdown_key = ?, error = ?
@@ -137,14 +134,13 @@ export class UserDO extends DurableObject<Env> {
         input.pageNumber,
       );
       const page = this.requirePage(input.jobId, input.pageNumber);
-      this.broadcast({ op: "page-upsert", row: page });
+      this.broadcast({ op: 'page-upsert', row: page });
       this.maybeCompleteJob(input.jobId);
       return Promise.resolve();
     }
 
     // Job-level final callback
-    const finalStatus: JobStatus =
-      input.status === "failed" ? "failed" : this.deriveJobStatus(input.jobId);
+    const finalStatus: JobStatus = input.status === 'failed' ? 'failed' : this.deriveJobStatus(input.jobId);
     this.ctx.storage.sql.exec(
       `UPDATE jobs SET status = ?, completed_at = ?, error = ? WHERE id = ?`,
       finalStatus,
@@ -152,7 +148,7 @@ export class UserDO extends DurableObject<Env> {
       input.error ?? null,
       input.jobId,
     );
-    this.broadcast({ op: "job-upsert", row: this.requireJob(input.jobId) });
+    this.broadcast({ op: 'job-upsert', row: this.requireJob(input.jobId) });
     return Promise.resolve();
   }
 
@@ -163,7 +159,7 @@ export class UserDO extends DurableObject<Env> {
       Date.now(),
       jobId,
     );
-    this.broadcast({ op: "job-upsert", row: this.requireJob(jobId) });
+    this.broadcast({ op: 'job-upsert', row: this.requireJob(jobId) });
     return Promise.resolve();
   }
 
@@ -171,7 +167,7 @@ export class UserDO extends DurableObject<Env> {
     return Promise.resolve(this.readSnapshot());
   }
 
-  async signTokenFor(claims: Omit<CallbackClaims, "exp">): Promise<string> {
+  async signTokenFor(claims: Omit<CallbackClaims, 'exp'>): Promise<string> {
     const exp = Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS;
     return await signCallbackToken({ ...claims, exp }, this.env.CALLBACK_HMAC_SECRET);
   }
@@ -180,10 +176,10 @@ export class UserDO extends DurableObject<Env> {
 
   override fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    if (url.pathname === "/ws" && request.headers.get("Upgrade") === "websocket") {
+    if (url.pathname === '/ws' && request.headers.get('Upgrade') === 'websocket') {
       return Promise.resolve(this.handleWebSocketUpgrade());
     }
-    return Promise.resolve(new Response("not found", { status: 404 }));
+    return Promise.resolve(new Response('not found', { status: 404 }));
   }
 
   private handleWebSocketUpgrade(): Response {
@@ -192,7 +188,7 @@ export class UserDO extends DurableObject<Env> {
     const server = pair[1];
     this.ctx.acceptWebSocket(server);
     const snap = this.readSnapshot();
-    server.send(JSON.stringify({ op: "snapshot", snapshot: snap } satisfies Delta));
+    server.send(JSON.stringify({ op: 'snapshot', snapshot: snap } satisfies Delta));
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -227,7 +223,7 @@ export class UserDO extends DurableObject<Env> {
         now,
         job.id,
       );
-      this.broadcast({ op: "job-upsert", row: this.requireJob(job.id) });
+      this.broadcast({ op: 'job-upsert', row: this.requireJob(job.id) });
     }
     // Reschedule if anything remains in-flight
     if (this.countInflight() > 0) {
@@ -244,7 +240,7 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private reconcileTimeoutMs(): number {
-    const seconds = Number.parseInt(this.env.RECONCILE_TIMEOUT_SECONDS ?? "3600", 10);
+    const seconds = Number.parseInt(this.env.RECONCILE_TIMEOUT_SECONDS ?? '3600', 10);
     return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 3600 * 1000;
   }
 
@@ -265,8 +261,8 @@ export class UserDO extends DurableObject<Env> {
     };
     try {
       const res = await fetch(`${this.env.PIPELINE_BASE}/submit`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
@@ -283,48 +279,32 @@ export class UserDO extends DurableObject<Env> {
         Date.now(),
         jobId,
       );
-      this.broadcast({ op: "job-upsert", row: this.requireJob(jobId) });
+      this.broadcast({ op: 'job-upsert', row: this.requireJob(jobId) });
     }
   }
 
   private maybeCompleteJob(jobId: string): void {
     const pending = this.ctx.storage.sql
-      .exec(
-        `SELECT count(*) as c FROM job_pages WHERE job_id = ? AND status = 'pending'`,
-        jobId,
-      )
+      .exec(`SELECT count(*) as c FROM job_pages WHERE job_id = ? AND status = 'pending'`, jobId)
       .toArray()[0] as { c: number } | undefined;
     if (!pending || pending.c > 0) return;
     const failed = this.ctx.storage.sql
-      .exec(
-        `SELECT count(*) as c FROM job_pages WHERE job_id = ? AND status = 'failed'`,
-        jobId,
-      )
+      .exec(`SELECT count(*) as c FROM job_pages WHERE job_id = ? AND status = 'failed'`, jobId)
       .toArray()[0] as { c: number } | undefined;
-    const status: JobStatus = (failed?.c ?? 0) > 0 ? "failed" : "done";
-    this.ctx.storage.sql.exec(
-      `UPDATE jobs SET status = ?, completed_at = ? WHERE id = ?`,
-      status,
-      Date.now(),
-      jobId,
-    );
-    this.broadcast({ op: "job-upsert", row: this.requireJob(jobId) });
+    const status: JobStatus = (failed?.c ?? 0) > 0 ? 'failed' : 'done';
+    this.ctx.storage.sql.exec(`UPDATE jobs SET status = ?, completed_at = ? WHERE id = ?`, status, Date.now(), jobId);
+    this.broadcast({ op: 'job-upsert', row: this.requireJob(jobId) });
   }
 
   private deriveJobStatus(jobId: string): JobStatus {
     const failed = this.ctx.storage.sql
-      .exec(
-        `SELECT count(*) as c FROM job_pages WHERE job_id = ? AND status = 'failed'`,
-        jobId,
-      )
+      .exec(`SELECT count(*) as c FROM job_pages WHERE job_id = ? AND status = 'failed'`, jobId)
       .toArray()[0] as { c: number } | undefined;
-    return (failed?.c ?? 0) > 0 ? "failed" : "done";
+    return (failed?.c ?? 0) > 0 ? 'failed' : 'done';
   }
 
   private requireJob(jobId: string): JobRow {
-    const rows = this.ctx.storage.sql
-      .exec<JobRow>(`SELECT * FROM jobs WHERE id = ?`, jobId)
-      .toArray();
+    const rows = this.ctx.storage.sql.exec<JobRow>(`SELECT * FROM jobs WHERE id = ?`, jobId).toArray();
     const row = rows[0];
     if (!row) throw new Error(`job not found: ${jobId}`);
     return row;
@@ -332,11 +312,7 @@ export class UserDO extends DurableObject<Env> {
 
   private requirePage(jobId: string, pageNumber: number): PageRow {
     const rows = this.ctx.storage.sql
-      .exec<PageRow>(
-        `SELECT * FROM job_pages WHERE job_id = ? AND page_number = ?`,
-        jobId,
-        pageNumber,
-      )
+      .exec<PageRow>(`SELECT * FROM job_pages WHERE job_id = ? AND page_number = ?`, jobId, pageNumber)
       .toArray();
     const row = rows[0];
     if (!row) throw new Error(`page not found: ${jobId}/${pageNumber}`);
@@ -344,12 +320,8 @@ export class UserDO extends DurableObject<Env> {
   }
 
   private readSnapshot(): Snapshot {
-    const jobs = this.ctx.storage.sql
-      .exec<JobRow>(`SELECT * FROM jobs ORDER BY created_at DESC`)
-      .toArray();
-    const pages = this.ctx.storage.sql
-      .exec<PageRow>(`SELECT * FROM job_pages ORDER BY job_id, page_number`)
-      .toArray();
+    const jobs = this.ctx.storage.sql.exec<JobRow>(`SELECT * FROM jobs ORDER BY created_at DESC`).toArray();
+    const pages = this.ctx.storage.sql.exec<PageRow>(`SELECT * FROM job_pages ORDER BY job_id, page_number`).toArray();
     return { jobs, pages };
   }
 

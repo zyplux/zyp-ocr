@@ -1,6 +1,6 @@
 # totvibe-ocr
 
-Scanned PDFs in, markdown out, page-by-page over WebSocket. See [`plan/totvibe-ocr.md`](./plan/totvibe-ocr.md) for the architecture and [`plan/project-structure.md`](./plan/project-structure.md) for the repo layout.
+Scanned PDFs in, markdown out, page-by-page over WebSocket. See [`plan/totvibe-ocr.md`](./plan/totvibe-ocr.md) for the architecture and [`plan/project-structure.md`](./plan/done/001-proj-struct.md) for the repo layout.
 
 ## Prerequisites
 
@@ -44,4 +44,3 @@ just codegen     # regenerate apps/web/src/contracts.ts from Pydantic schemas
   `createFileRoute(...)` calls — they go away after the first dev run.
 - Run `pnpm --filter @totvibe/web wrangler:types` after editing `wrangler.jsonc`
   to refresh `worker-configuration.d.ts`.
-

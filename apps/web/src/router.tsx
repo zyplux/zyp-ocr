@@ -1,10 +1,10 @@
-import { createRouter as createTanStackRouter } from "@tanstack/react-router";
-import { routeTree } from "./routeTree.gen";
+import { createRouter as createTanStackRouter } from '@tanstack/react-router';
+import { routeTree } from './routeTree.gen';
 
 export function getRouter() {
   return createTanStackRouter({
     routeTree,
     scrollRestoration: true,
-    defaultPreload: "intent",
+    defaultPreload: 'intent',
   });
 }
