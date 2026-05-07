@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 type ConfigWithExtends = Parameters<typeof defineConfig>[number];
+import totvibe from '@totvibe/eslint-plugin';
 import perfectionist from 'eslint-plugin-perfectionist';
 import preferArrowFunctions from 'eslint-plugin-prefer-arrow-functions';
 import react from 'eslint-plugin-react';
@@ -117,6 +118,14 @@ const tanstackRoutesConfig = {
   },
 } satisfies ConfigWithExtends;
 
+const totvibeConfig = {
+  files: ['**/*.{ts,tsx}'],
+  plugins: { '@totvibe': totvibe },
+  rules: {
+    '@totvibe/no-as-any': 'error',
+  },
+} satisfies ConfigWithExtends;
+
 export default defineConfig(
   ignoresConfig,
   baseConfig,
@@ -125,4 +134,5 @@ export default defineConfig(
   perfectionistConfig,
   unicornConfig,
   tanstackRoutesConfig,
+  totvibeConfig,
 );

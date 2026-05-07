@@ -51,6 +51,9 @@ catalogs:
     '@types/react-dom':
       specifier: ^19.2.3
       version: 19.2.3
+    '@typescript-eslint/utils':
+      specifier: ^8.59.2
+      version: 8.59.2
     eslint:
       specifier: ^10.3.0
       version: 10.3.0
@@ -122,6 +125,9 @@ importers:
       '@eslint/js':
         specifier: 'catalog:'
         version: 10.0.1(eslint@10.3.0(jiti@2.7.0))
+      '@totvibe/eslint-plugin':
+        specifier: workspace:*
+        version: link:packages/eslint-plugin
       '@types/node':
         specifier: 'catalog:'
         version: 24.12.2
@@ -246,6 +252,22 @@ importers:
       wrangler:
         specifier: 'catalog:'
         version: 4.88.0(@cloudflare/workers-types@4.20260507.1)
+
+  packages/eslint-plugin:
+    dependencies:
+      '@typescript-eslint/utils':
+        specifier: 'catalog:'
+        version: 8.59.2(eslint@10.3.0(jiti@2.7.0))(typescript@6.0.3)
+      eslint:
+        specifier: 'catalog:'
+        version: 10.3.0(jiti@2.7.0)
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.12.2
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
 
 packages:
 
