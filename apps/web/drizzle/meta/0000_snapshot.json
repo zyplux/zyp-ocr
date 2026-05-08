@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "0e29674d-4d35-4a57-a867-2fee707d91d0",
+  "id": "e4e49ec8-6d95-4ca5-a3ca-4cb7d1f2ab3f",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "callbacks_seen": {
@@ -28,8 +28,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "job_pages": {
-      "name": "job_pages",
+    "md_pages": {
+      "name": "md_pages",
       "columns": {
         "error": {
           "name": "error",
@@ -38,18 +38,18 @@
           "notNull": false,
           "autoincrement": false
         },
-        "job_id": {
-          "name": "job_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "markdown_key": {
           "name": "markdown_key",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false
+        },
+        "ocr_job_id": {
+          "name": "ocr_job_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
           "autoincrement": false
         },
         "page_number": {
@@ -69,12 +69,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "job_pages_job_id_jobs_id_fk": {
-          "name": "job_pages_job_id_jobs_id_fk",
-          "tableFrom": "job_pages",
-          "tableTo": "jobs",
+        "md_pages_ocr_job_id_ocr_jobs_id_fk": {
+          "name": "md_pages_ocr_job_id_ocr_jobs_id_fk",
+          "tableFrom": "md_pages",
+          "tableTo": "ocr_jobs",
           "columnsFrom": [
-            "job_id"
+            "ocr_job_id"
           ],
           "columnsTo": [
             "id"
@@ -84,24 +84,24 @@
         }
       },
       "compositePrimaryKeys": {
-        "job_pages_job_id_page_number_pk": {
+        "md_pages_ocr_job_id_page_number_pk": {
           "columns": [
-            "job_id",
+            "ocr_job_id",
             "page_number"
           ],
-          "name": "job_pages_job_id_page_number_pk"
+          "name": "md_pages_ocr_job_id_page_number_pk"
         }
       },
       "uniqueConstraints": {},
       "checkConstraints": {
-        "job_pages_status_enum": {
-          "name": "job_pages_status_enum",
-          "value": "\"job_pages\".\"status\" IN ('pending','done','failed')"
+        "md_pages_status_enum": {
+          "name": "md_pages_status_enum",
+          "value": "\"md_pages\".\"status\" IN ('pending','done','failed')"
         }
       }
     },
-    "jobs": {
-      "name": "jobs",
+    "ocr_jobs": {
+      "name": "ocr_jobs",
       "columns": {
         "completed_at": {
           "name": "completed_at",
@@ -145,13 +145,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "source_key": {
-          "name": "source_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "started_at": {
           "name": "started_at",
           "type": "integer",
@@ -172,6 +165,13 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "upload_key": {
+          "name": "upload_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         }
       },
       "indexes": {},
@@ -179,17 +179,17 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "jobs_status_enum": {
-          "name": "jobs_status_enum",
-          "value": "\"jobs\".\"status\" IN ('pending','processing','done','failed')"
+        "ocr_jobs_status_enum": {
+          "name": "ocr_jobs_status_enum",
+          "value": "\"ocr_jobs\".\"status\" IN ('pending','processing','done','failed')"
         },
-        "jobs_size_bytes_max": {
-          "name": "jobs_size_bytes_max",
-          "value": "\"jobs\".\"size_bytes\" <= 52428800"
+        "ocr_jobs_size_bytes_max": {
+          "name": "ocr_jobs_size_bytes_max",
+          "value": "\"ocr_jobs\".\"size_bytes\" <= 52428800"
         },
-        "jobs_total_pages_max": {
-          "name": "jobs_total_pages_max",
-          "value": "\"jobs\".\"total_pages\" <= 100"
+        "ocr_jobs_total_pages_max": {
+          "name": "ocr_jobs_total_pages_max",
+          "value": "\"ocr_jobs\".\"total_pages\" <= 100"
         }
       }
     }

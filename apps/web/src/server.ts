@@ -31,7 +31,7 @@ type App = { Bindings: Env; Variables: { claims: CallbackClaims } };
 
 const userStub = (env: Env) => env.USER_DO.get(env.USER_DO.idFromName(DEFAULT_USER_ID));
 
-const handleCreateJob = async (c: Context<App>) => {
+const handleCreateOcrJob = async (c: Context<App>) => {
   const request = c.req.raw;
   const contentType = request.headers.get('content-type') ?? '';
   if (!contentType.includes(PDF_CONTENT_TYPE)) {
@@ -54,16 +54,16 @@ const handleCreateJob = async (c: Context<App>) => {
     return c.json({ error: `too many pages (max ${MAX_PAGES})` }, 413);
   }
 
-  const jobId = ulid();
-  await blob.put(c.env, blob.source(jobId), bytes);
+  const ocrJobId = ulid();
+  await blob.put(c.env, blob.upload(ocrJobId), bytes);
 
-  const result = await userStub(c.env).createJob({
-    jobId,
+  const result = await userStub(c.env).createOcrJob({
+    ocrJobId,
     sizeBytes: bytes.byteLength,
-    sourceKeyTemplate: 'jobs/{jobId}/source.pdf',
     totalPages,
+    uploadKeyTemplate: 'ocr-jobs/{ocrJobId}/upload.pdf',
   });
-  return c.json({ jobId: result.jobId });
+  return c.json({ ocrJobId: result.ocrJobId });
 };
 
 const handleSnapshot = async (c: Context<App>) => {
@@ -108,12 +108,12 @@ const pipelineCallbackHandlers = factory.createHandlers(
   async c => {
     const claims = c.var.claims;
     const data = c.req.valid('json');
-    if (data.job_id !== claims.jobId) {
-      return c.json({ error: 'token / payload job mismatch' }, 403);
+    if (data.ocr_job_id !== claims.ocrJobId) {
+      return c.json({ error: 'token / payload ocr job mismatch' }, 403);
     }
     const input: ApplyCallbackInput = {
       callbackId: data.callback_id,
-      jobId: data.job_id,
+      ocrJobId: data.ocr_job_id,
       status: data.status,
       ...(data.page_number != undefined && { pageNumber: data.page_number }),
       ...(data.markdown_key && { markdownKey: data.markdown_key }),
@@ -124,11 +124,11 @@ const pipelineCallbackHandlers = factory.createHandlers(
   },
 );
 
-const JobIdSchema = z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+const OcrJobIdSchema = z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/);
 
-const JobParams = z.object({ jobId: JobIdSchema });
-const PageParams = z.object({
-  jobId: JobIdSchema,
+const OcrJobParams = z.object({ ocrJobId: OcrJobIdSchema });
+const MdPageParams = z.object({
+  ocrJobId: OcrJobIdSchema,
   page: z.coerce.number().int().min(1).max(MAX_PAGES),
 });
 
@@ -144,12 +144,15 @@ const blobRoute = <S extends z.ZodType>(
   );
 
 const api = new Hono<App>()
-  .post('/api/jobs', handleCreateJob)
+  .post('/api/ocr-jobs', handleCreateOcrJob)
   .get('/api/me/items', handleSnapshot)
   .all('/api/me/ws', handleWebSocket)
   .post('/api/pipeline/callback', ...pipelineCallbackHandlers)
-  .get('/api/jobs/:jobId/source', ...blobRoute(JobParams, p => blob.source(p.jobId)))
-  .get('/api/jobs/:jobId/pages/:page', ...blobRoute(PageParams, p => blob.page(p.jobId, p.page)))
+  .get('/api/ocr-jobs/:ocrJobId/upload', ...blobRoute(OcrJobParams, p => blob.upload(p.ocrJobId)))
+  .get(
+    '/api/ocr-jobs/:ocrJobId/md-pages/:page',
+    ...blobRoute(MdPageParams, p => blob.mdPage(p.ocrJobId, p.page)),
+  )
   .all('/api/*', c => c.json({ error: 'not found' }, 404))
   .all('*', c => startHandler(c.req.raw));
 

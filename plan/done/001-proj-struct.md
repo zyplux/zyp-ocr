@@ -144,7 +144,7 @@ totvibe-ocr/
         │       ├── __init__.py
         │       ├── __main__.py       # `python -m pipeline_api` (supports --mock)
         │       ├── app.py            # FastAPI app factory
-        │       ├── routes.py         # /submit, /jobs/<id>, /healthz
+        │       ├── routes.py         # /submit, /ocr-jobs/<id>, /healthz
         │       ├── ocr.py            # glmocr SDK calls (real path)
         │       ├── storage.py        # aioboto3 S3 client
         │       ├── callbacks.py      # outbound POST to Worker

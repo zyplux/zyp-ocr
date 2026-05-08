@@ -19,9 +19,9 @@ def s3_client(session: aioboto3.Session, settings: Settings):
     )
 
 
-def source_key(job_id: str) -> str:
-    return f"jobs/{job_id}/source.pdf"
+def upload_key(ocr_job_id: str) -> str:
+    return f"ocr-jobs/{ocr_job_id}/upload.pdf"
 
 
-def page_key(job_id: str, page_number: int) -> str:
-    return f"jobs/{job_id}/pages/{page_number}.md"
+def md_page_key(ocr_job_id: str, page_number: int) -> str:
+    return f"ocr-jobs/{ocr_job_id}/md-pages/{page_number}.md"

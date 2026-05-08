@@ -2,12 +2,12 @@ import { useLiveQuery } from '@tanstack/react-db';
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router';
 import { useCallback, useState } from 'react';
 
-import { jobsCollection } from '~/client/jobs-collection';
+import { ocrJobsCollection } from '~/client/ocr-jobs-collection';
 import { getMessage } from '~/lib/error';
 
 const HomePage = () => {
   const router = useRouter();
-  const { data: jobs } = useLiveQuery(q => q.from({ j: jobsCollection }));
+  const { data: ocrJobs } = useLiveQuery(q => q.from({ j: ocrJobsCollection }));
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -16,7 +16,7 @@ const HomePage = () => {
       setBusy(true);
       setError('');
       try {
-        const res = await fetch('/api/jobs', {
+        const res = await fetch('/api/ocr-jobs', {
           body: file,
           headers: { 'content-type': 'application/pdf' },
           method: 'POST',
@@ -26,8 +26,8 @@ const HomePage = () => {
           const body = (raw ?? {}) as { error?: string };
           throw new Error(body.error ?? `upload failed (${res.status})`);
         }
-        const { jobId }: { jobId: string } = await res.json();
-        await router.navigate({ params: { jobId }, to: '/jobs/$jobId' });
+        const { ocrJobId }: { ocrJobId: string } = await res.json();
+        await router.navigate({ params: { ocrJobId }, to: '/ocr-jobs/$ocrJobId' });
       } catch (err) {
         setError(getMessage(err, 'upload'));
       } finally {
@@ -77,18 +77,18 @@ const HomePage = () => {
       </div>
       {error && <p style={{ color: 'crimson' }}>{error}</p>}
 
-      <h2>Jobs</h2>
-      {jobs.length === 0 ? (
-        <p>No jobs yet.</p>
+      <h2>OCR jobs</h2>
+      {ocrJobs.length === 0 ? (
+        <p>No OCR jobs yet.</p>
       ) : (
         <ul>
-          {jobs.map(job => (
-            <li key={job.id}>
-              <Link params={{ jobId: job.id }} to="/jobs/$jobId">
-                {job.id}
+          {ocrJobs.map(ocrJob => (
+            <li key={ocrJob.id}>
+              <Link params={{ ocrJobId: ocrJob.id }} to="/ocr-jobs/$ocrJobId">
+                {ocrJob.id}
               </Link>{' '}
-              — {job.status} ({job.total_pages} pages)
-              {job.error ? ` — ${job.error}` : ''}
+              — {ocrJob.status} ({ocrJob.total_pages} pages)
+              {ocrJob.error ? ` — ${ocrJob.error}` : ''}
             </li>
           ))}
         </ul>

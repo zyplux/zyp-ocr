@@ -52,15 +52,15 @@ Scanned PDFs (old books, faxed documents, photographed receipts) carry no text l
 - TS edge layer: **TypeScript on Cloudflare Workers via TanStack Start** (Cloudflare adapter). Server functions today; in-place RSC migration becomes a flag-flip later. [DECIDED]
 - Frontend: **Vite + React 19 + TanStack Router + TanStack DB** (`useLiveQuery`); jotai retained only for local UI state (drag-drop hover, expand/collapse, modals). No RSC pre-v1.x. [DECIDED]
 - Markdown rendering: **react-markdown + `remark-gfm` + `remark-math` + `rehype-katex`**. Matches GLM-OCR's output shape (tables + LaTeX, not code-heavy). [DECIDED]
-- State: **single shared Durable Object with embedded SQLite** for v0.x; **DO-per-user** for v1. Tables: `jobs`, `job_pages`, `callbacks_seen`. Schema is owned by the DO's `migrate()` (idempotent `CREATE TABLE IF NOT EXISTS` for v0→v1 of the schema; versioned migrations on first wake post-deploy after that). [DECIDED]
+- State: **single shared Durable Object with embedded SQLite** for v0.x; **DO-per-user** for v1. Tables: `ocr_jobs`, `md_pages`, `callbacks_seen`. Schema is owned by the DO's `migrate()` (idempotent `CREATE TABLE IF NOT EXISTS` for v0→v1 of the schema; versioned migrations on first wake post-deploy after that). [DECIDED]
 - DB access (TS): **raw `ctx.storage.sql.exec(...)` inside the DO** to start; switch to drizzle-orm-sqlite-core if/when the query surface justifies it. [DECIDED]
 - Live updates: **hibernation-aware WebSocket** from the DO to the SPA. Compatibility date `2026-04-07` or later for runtime-handled control frames. [DECIDED]
 - Reactive client store: **TanStack DB collection** with custom `sync` (hydrates from `GET /api/me/items`, stays live via WebSocket, exponential-backoff reconnect). Optimistic mutation via `onInsert` / `onUpdate`. [DECIDED]
 - Blobs: **S3-compatible storage** for both source PDFs and per-page markdown. **Local: MinIO in podman** (mocks R2; both the Worker and the Python pipeline talk to it via S3 SDKs against the same endpoint). **Production: real R2 via its S3-compatible API.** Switch by env var (endpoint, access key, secret). [DECIDED]
 - Python pipeline service: **lightweight HTTP server (FastAPI on uvicorn), pure `asyncio`**, calls the `glmocr` SDK + paddlepaddle-gpu. Accepts submission webhook, POSTs callbacks back to the public Worker. (Reverses the round-6 "no HTTP server in Python" decision — the pipeline now needs an inbound port.) [DECIDED]
-- Signed callback tokens: **HMAC-SHA256 over compact base64url JSON** with claims `{userId, jobId, pageNumber?, callbackId, exp}`. Secret via `wrangler secret put`. Rotation: accept two secrets during a grace window, sign with the new one. [DECIDED]
+- Signed callback tokens: **HMAC-SHA256 over compact base64url JSON** with claims `{userId, ocrJobId, pageNumber?, callbackId, exp}`. Secret via `wrangler secret put`. Rotation: accept two secrets during a grace window, sign with the new one. [DECIDED]
 - Idempotency: every callback carries a unique `callbackId` recorded in `callbacks_seen`; replays no-op silently. [DECIDED]
-- Crash recovery: **alarm-driven reconciliation**. The DO sets an alarm on submission with a **configurable timeout** (env var; default ~1 h in prod, seconds in tests); the alarm marks the row `failed('timeout')` if the callback never arrives. **Smarter status-poll reconcile** (alarm queries the pipeline's `GET /jobs/<pipeline_id>` before failing) lands in v0.5. [DECIDED]
+- Crash recovery: **alarm-driven reconciliation**. The DO sets an alarm on submission with a **configurable timeout** (env var; default ~1 h in prod, seconds in tests); the alarm marks the row `failed('timeout')` if the callback never arrives. **Smarter status-poll reconcile** (alarm queries the pipeline's `GET /ocr-jobs/<pipeline_id>` before failing) lands in v0.5. [DECIDED]
 - DO ↔ Pipeline communication: **only signed-token HTTP webhooks** (DO → pipeline for submission, pipeline → public Worker → DO for per-page callbacks). No shared queue, no shared DB. The blob store is shared (DO writes the source PDF location into the row; pipeline reads the source PDF + writes per-page markdown to the same bucket). [DECIDED]
 - Identity: v0.x uses a **singleton DO** (`USER_DO.idFromName('default')`); v1 switches to `USER_DO.idFromName(userId)`. Code change is one line. [DECIDED]
 - Networking: local dev via `wrangler dev` (no TLS, no auth) for v0.1; v0.5 deploys the TS edge layer to CF (basic password gate or CF Access at the public surface). Python pipeline stays on the laptop and is reachable from the deployed Worker via Cloudflare Tunnel through v0.5. [DECIDED]
@@ -70,45 +70,45 @@ Scanned PDFs (old books, faxed documents, photographed receipts) carry no text l
 
 ## 7. Functional requirements
 1. Browser uploads PDF to a Worker route via the page (drag-drop or file picker). [DECIDED]
-2. Worker validates content-type (`application/pdf`) and size (≤ 50 MB), streams the PDF to the blob store, then calls `DO.createJob({sourceKey, sizeBytes, totalPages})` via stub. The DO writes the `jobs` row and per-page placeholders, broadcasts `{op: 'insert', row}` to all open WebSockets, and fires `submitToPipeline(jobId)` under `ctx.waitUntil`. [DECIDED]
-3. The DO POSTs to the pipeline's submission URL with `{job_id, source_key, callback_url, callback_token}`; the pipeline returns `{pipeline_id}` synchronously; the DO updates the row to `processing`, stores `pipeline_id`, and broadcasts. [DECIDED]
-4. The pipeline downloads the PDF from the blob store, runs the SDK page-by-page, and after each page POSTs to the public Worker callback `/api/pipeline/callback` with `{callback_id, job_id, page_number, status, markdown_key?, error?}` and the callback token in `x-callback-token`. The Worker verifies the token, routes into the DO via stub, the DO updates `job_pages`, broadcasts the delta, and ack's. [DECIDED]
-5. The pipeline POSTs a final job-level callback when all pages are processed; the DO marks `jobs.status='done'` (or `'failed'` if any page failed) and broadcasts. [DECIDED]
-6. Per-page error tolerance: a single failing page sets `job_pages.status='failed'` with an error message; the job continues. The UI displays the error **inline next to the failing page** (no toast, no banner). v0.x ships **without a per-page retry button** — re-uploading the PDF is the supported recovery path; per-page retry is a post-v1 feature. [DECIDED]
+2. Worker validates content-type (`application/pdf`) and size (≤ 50 MB), streams the PDF to the blob store, then calls `DO.createOcrJob({uploadKey, sizeBytes, totalPages})` via stub. The DO writes the `ocr_jobs` row and per-md_page placeholders, broadcasts `{op: 'insert', row}` to all open WebSockets, and fires `submitToPipeline(ocrJobId)` under `ctx.waitUntil`. [DECIDED]
+3. The DO POSTs to the pipeline's submission URL with `{ocr_job_id, upload_key, callback_url, callback_token}`; the pipeline returns `{pipeline_id}` synchronously; the DO updates the row to `processing`, stores `pipeline_id`, and broadcasts. [DECIDED]
+4. The pipeline downloads the PDF from the blob store, runs the SDK page-by-page, and after each page POSTs to the public Worker callback `/api/pipeline/callback` with `{callback_id, ocr_job_id, page_number, status, markdown_key?, error?}` and the callback token in `x-callback-token`. The Worker verifies the token, routes into the DO via stub, the DO updates `md_pages`, broadcasts the delta, and ack's. [DECIDED]
+5. The pipeline POSTs a final ocr-job-level callback when all pages are processed; the DO marks `ocr_jobs.status='done'` (or `'failed'` if any page failed) and broadcasts. [DECIDED]
+6. Per-md_page error tolerance: a single failing page sets `md_pages.status='failed'` with an error message; the ocr job continues. The UI displays the error **inline next to the failing page** (no toast, no banner). v0.x ships **without a per-md_page retry button** — re-uploading the PDF is the supported recovery path; per-md_page retry is a post-v1 feature. [DECIDED]
 7. Crash recovery: the DO sets an alarm one hour after submission. If no terminal callback has arrived by alarm time, the DO marks `pending` / `processing` rows as `failed('timeout')` and broadcasts. (Pipeline-side crash mid-job leaves the job in `processing` until the alarm fires; a smarter reconcile that polls the pipeline for status is a v0.5 enhancement — see §13.) [DECIDED]
 8. Worker code deploy mid-flight drops all WebSockets; clients reconnect via exponential backoff in the TanStack DB collection's `sync` callback and `GET /api/me/items` to rehydrate. In-flight pipeline submissions whose `pipeline_id` was already stored survive the deploy; ones that hadn't yet stored their `pipeline_id` are caught by the alarm. [DECIDED]
-9. Job-as-URL: each upload becomes a stable URL (`/jobs/<id>`). [DECIDED]
+9. OcrJob-as-URL: each upload becomes a stable URL (`/ocr-jobs/<id>`). [DECIDED]
 10. **Live updates only — no polling fallback.** WebSocket reconnect after disconnect: refetch the full list on reconnect after T seconds disconnected (configurable, default 5 s). [DECIDED]
-11. Original PDF retrievable from the job's URL after completion via a Worker route that proxies the blob-store GET. [DECIDED]
-12. Caps: **50 MB max file size**, **100 pages max**, **10 queued/in-flight jobs max** (the DO checks the count of `pending`+`processing` rows on submission), **1 in-flight page per job** (pipeline-side). Enforced both in Worker validation and as DO SQLite `CHECK` constraints. [DECIDED]
-13. Job ID format: **ULID**. [DECIDED]
+11. Original PDF retrievable from the ocr job's URL after completion via a Worker route that proxies the blob-store GET. [DECIDED]
+12. Caps: **50 MB max file size**, **100 pages max**, **10 queued/in-flight ocr jobs max** (the DO checks the count of `pending`+`processing` rows on submission), **1 in-flight page per ocr job** (pipeline-side). Enforced both in Worker validation and as DO SQLite `CHECK` constraints. [DECIDED]
+13. OcrJob ID format: **ULID**. [DECIDED]
 
 ## 8. Walking skeleton (v0.1 / MVP)
 - **Four runnable pieces. No Postgres, no pgmq:**
   1. **TS edge layer** — TanStack Start app deployed as a Worker, with a single Durable Object class. Local dev via `wrangler dev` running **inside a podman container** (DO + Worker runtime emulated by miniflare under the hood; container port `8787` published to `localhost:8787`). The DO is addressed by `USER_DO.idFromName('default')`.
   2. **MinIO** (podman) on `localhost:9000` (console on `:9001`) — S3-compatible blob store; used by both the Worker and the Python pipeline via standard S3 SDKs. Bucket created at first run via an init job.
-  3. **Python pipeline service** (`services/pipeline-api`) — FastAPI app **running inside a podman container**, port `8000` published to `localhost:8000`. Endpoints: `POST /submit` (accept a job, queue an asyncio task, return `{pipeline_id}`), `GET /jobs/<pipeline_id>` (status; used by the DO's alarm reconcile in v0.5+), `GET /healthz`. Uses `aioboto3` (or `aiobotocore`) for S3-compatible storage access, the `glmocr` SDK + paddlepaddle-gpu for OCR, `aiosqlite` for pipeline-local crash-recovery state. POSTs callbacks to `${PUBLIC_BASE}/api/pipeline/callback`.
+  3. **Python pipeline service** (`services/pipeline-api`) — FastAPI app **running inside a podman container**, port `8000` published to `localhost:8000`. Endpoints: `POST /submit` (accept an ocr job, queue an asyncio task, return `{pipeline_id}`), `GET /ocr-jobs/<pipeline_id>` (status; used by the DO's alarm reconcile in v0.5+), `GET /healthz`. Uses `aioboto3` (or `aiobotocore`) for S3-compatible storage access, the `glmocr` SDK + paddlepaddle-gpu for OCR, `aiosqlite` for pipeline-local crash-recovery state. POSTs callbacks to `${PUBLIC_BASE}/api/pipeline/callback`.
   4. **vLLM** (podman, GPU passthrough) on `localhost:8080`, serving GLM-OCR with MTP speculative decoding.
 - DO SQLite tables (created idempotently by the DO's `migrate()` on first wake):
-  - `jobs(id text pk, status text check (status in ('pending','processing','done','failed')), source_key text not null, size_bytes int check (size_bytes <= 52428800), total_pages int check (total_pages <= 100), pipeline_id text, error text, created_at int, started_at int, completed_at int)`
-  - `job_pages(job_id text references jobs, page_number int, status text check (status in ('pending','done','failed')), markdown_key text, error text, primary key (job_id, page_number))`
+  - `ocr_jobs(id text pk, status text check (status in ('pending','processing','done','failed')), upload_key text not null, size_bytes int check (size_bytes <= 52428800), total_pages int check (total_pages <= 100), pipeline_id text, error text, created_at int, started_at int, completed_at int)`
+  - `md_pages(ocr_job_id text references ocr_jobs, page_number int, status text check (status in ('pending','done','failed')), markdown_key text, error text, primary key (ocr_job_id, page_number))`
   - `callbacks_seen(callback_id text pk, seen_at int)`
 - Blob layout (MinIO locally, R2 in production — same keys):
-  - `jobs/<id>/source.pdf`
-  - `jobs/<id>/pages/<n>.md`
+  - `ocr-jobs/<id>/upload.pdf`
+  - `ocr-jobs/<id>/md-pages/<n>.md`
 - Worker server functions / routes (sketch, no code):
-  - `POST /api/jobs` — validates upload, streams PDF to the blob store via S3 SDK, calls `DO.createJob` via stub. Returns `{job_id}`.
-  - `GET /api/me/items` — initial hydrate for the SPA; returns the full `jobs` + `job_pages` snapshot from the DO.
+  - `POST /api/ocr-jobs` — validates upload, streams PDF to the blob store via S3 SDK, calls `DO.createOcrJob` via stub. Returns `{ocrJobId}`.
+  - `GET /api/me/items` — initial hydrate for the SPA; returns the full `ocr_jobs` + `md_pages` snapshot from the DO.
   - `GET /api/me/ws` — upgrades to WebSocket, forwarded to the DO's `fetch` handler.
   - `POST /api/pipeline/callback` — token-authenticated; verifies signature, routes into the DO via stub.
-  - `GET /api/jobs/<id>/source` — proxies the blob-store GET for the source PDF.
-  - `GET /api/jobs/<id>/pages/<n>` — proxies the blob-store GET for a per-page markdown (the SPA can also render markdown directly off the live `markdown_key`-bearing row by fetching once on demand and caching client-side).
-- Python pipeline loop (per job):
-  1. Receive `POST /submit` with `{job_id, source_key, callback_url, callback_token}`. Persist to local SQLite (so the pipeline can recover its own crashes), return `{pipeline_id}` immediately.
+  - `GET /api/ocr-jobs/<id>/upload` — proxies the blob-store GET for the original PDF.
+  - `GET /api/ocr-jobs/<id>/md-pages/<n>` — proxies the blob-store GET for a per-md_page markdown (the SPA can also render markdown directly off the live `markdown_key`-bearing row by fetching once on demand and caching client-side).
+- Python pipeline loop (per ocr job):
+  1. Receive `POST /submit` with `{ocr_job_id, upload_key, callback_url, callback_token}`. Persist to local SQLite (so the pipeline can recover its own crashes), return `{pipeline_id}` immediately.
   2. Download PDF from the blob store to a tmp dir.
-  3. Run the SDK page-by-page. After each page: write markdown to the blob store, POST callback `{callback_id, job_id, page_number, status: 'done'|'failed', markdown_key?, error?}` with `x-callback-token`. Retry on transient callback failures with exponential backoff and a per-page deadline.
-  4. POST job-level final callback `{status: 'done'|'failed'}`. Clean up tmp.
-- Single concurrent job at a time backend-wide (one Python pipeline instance, one in-flight page per job). Multiple queued jobs are serialized by the pipeline's submission queue.
+  3. Run the SDK page-by-page. After each page: write markdown to the blob store, POST callback `{callback_id, ocr_job_id, page_number, status: 'done'|'failed', markdown_key?, error?}` with `x-callback-token`. Retry on transient callback failures with exponential backoff and a per-md_page deadline.
+  4. POST ocr-job-level final callback `{status: 'done'|'failed'}`. Clean up tmp.
+- Single concurrent ocr job at a time backend-wide (one Python pipeline instance, one in-flight page per ocr job). Multiple queued ocr jobs are serialized by the pipeline's submission queue.
 - For tests and fast iteration without GPU, `pipeline_mock.py` (or `pipeline.py --mock`) implements the same HTTP surface as the real pipeline but returns canned per-page callbacks after a configurable delay. v0.1's e2e tests use this; the real pipeline + vLLM only run in dev sessions where the OCR output matters.
 
 ## 9. Architecture sketch
@@ -121,7 +121,7 @@ flowchart LR
 
     subgraph Edge["Cloudflare edge (or wrangler dev locally)"]
         W["Worker<br/>TanStack Start<br/>(routes · auth · token verify)"]
-        DO[("Durable Object<br/>singleton in v0.x · per-user in v1<br/>SQLite: jobs · job_pages · callbacks_seen")]
+        DO[("Durable Object<br/>singleton in v0.x · per-user in v1<br/>SQLite: ocr_jobs · md_pages · callbacks_seen")]
     end
 
     subgraph Blob["S3-compatible blob store"]
@@ -140,7 +140,7 @@ flowchart LR
 
     DO -->|"POST /submit<br/>+ callback URL<br/>+ signed token"| Pipe
     Pipe -->|"POST callback<br/>(token in header)"| W
-    Pipe <-->|"GET source.pdf<br/>PUT pages/n.md"| S3
+    Pipe <-->|"GET upload.pdf<br/>PUT md-pages/n.md"| S3
     Pipe -->|"OCR per page<br/>OpenAI-compatible"| VLLM
 
     classDef storage fill:#e8f4f8,stroke:#0288d1,color:#000
@@ -150,17 +150,17 @@ flowchart LR
     class VLLM,Pipe gpu
 ```
 
-The two halves never share state directly. The Worker + DO owns all client-facing state; the pipeline owns OCR. They meet at signed-token HTTP webhooks and the S3-compatible blob store — every state transition that changes the UI happens in the DO, and the DO is the only thing that broadcasts.
+The two halves never share state directly. The Worker + DO owns all client-facing state; the pipeline owns OCR. They meet at signed-token HTTP webhooks and the S3-compatible blob store — every state transition that changes the UI happens in the DO, and the DO is the only thing that broadcasts. Each side has its own SQLite: the DO owns `ocr_jobs` / `md_pages` / `callbacks_seen` (client-facing state); the pipeline owns `pipeline_ocr_jobs` (its own crash-recovery view of accepted submissions).
 
 - **TS edge layer (TanStack Start as Worker + DO)**:
-  - SPA: TanStack Router for `/` and `/jobs/<id>`; TanStack DB collection for live job/page data; `useLiveQuery` in components.
+  - SPA: TanStack Router for `/` and `/ocr-jobs/<id>`; TanStack DB collection for live ocr_job/md_page data; `useLiveQuery` in components.
   - Worker routes: upload, hydrate, WebSocket entrypoint, callback receiver, blob-store proxies.
   - DO: singleton in v0.x, per-user in v1; owns SQLite + WebSocket fanout; signs callback tokens; sets alarms for reconciliation.
   - No knowledge of glmocr, paddlepaddle, vLLM, or the OCR internals.
 - **Python pipeline service**:
-  - `pipeline.py` — FastAPI on uvicorn. Submission endpoint accepts `{job_id, source_key, callback_url, callback_token}`, queues an asyncio task, returns `{pipeline_id}` synchronously.
-  - Per-job task downloads the PDF from the blob store, runs the SDK page-by-page, POSTs per-page and final callbacks. No knowledge of TanStack / DO / Workers.
-  - Local SQLite (file via `aiosqlite`) tracks pipeline-side job state for pipeline crash recovery.
+  - `pipeline.py` — FastAPI on uvicorn. Submission endpoint accepts `{ocr_job_id, upload_key, callback_url, callback_token}`, queues an asyncio task, returns `{pipeline_id}` synchronously.
+  - Per-ocr-job task downloads the PDF from the blob store, runs the SDK page-by-page, POSTs per-md_page and final callbacks. No knowledge of TanStack / DO / Workers.
+  - Local SQLite (file via `aiosqlite`) tracks pipeline-side ocr_job state for pipeline crash recovery.
 - **vLLM container** (podman, GPU passthrough): `vllm/vllm-openai:v0.19.0-ubuntu2404` serving `zai-org/GLM-OCR` on `localhost:8080`, called only by the pipeline.
 - **Blob store**: MinIO container in podman locally; real R2 in production. Same code path, env-var swap of endpoint + credentials.
 - **Local dev orchestration**: a single root `justfile` delegates everything to `podman compose -f infra/compose.yaml -f infra/compose.dev.yaml up`. Four containerized services (wrangler dev, the Python pipeline, MinIO, vLLM), one entry point. Variants (mock pipeline without GPU, future test stack) are sibling override files. See [`project-structure.md`](./done/001-proj-struct.md) for the repo layout.

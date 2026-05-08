@@ -2,65 +2,66 @@ import { useLiveQuery } from '@tanstack/react-db';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
-import type { PageRow } from '~/durable-objects/user-do';
+import type { MdPageRow } from '~/durable-objects/user-do';
 
-import { jobsCollection, pagesCollection } from '~/client/jobs-collection';
 import { Markdown } from '~/client/markdown';
+import { mdPagesCollection, ocrJobsCollection } from '~/client/ocr-jobs-collection';
 
-const JobPage = () => {
-  const params: { jobId: string } = Route.useParams();
-  const { jobId } = params;
-  const { data: jobMatches } = useLiveQuery(
-    q => q.from({ j: jobsCollection }).where(({ j }) => j.id === jobId),
-    [jobId],
+const OcrJobPage = () => {
+  const params: { ocrJobId: string } = Route.useParams();
+  const { ocrJobId } = params;
+  const { data: ocrJobMatches } = useLiveQuery(
+    q => q.from({ j: ocrJobsCollection }).where(({ j }) => j.id === ocrJobId),
+    [ocrJobId],
   );
-  const { data: pages } = useLiveQuery(
+  const { data: mdPages } = useLiveQuery(
     q =>
       q
-        .from({ p: pagesCollection })
-        .where(({ p }) => p.job_id === jobId)
+        .from({ p: mdPagesCollection })
+        .where(({ p }) => p.ocr_job_id === ocrJobId)
         .orderBy(({ p }) => p.page_number),
-    [jobId],
+    [ocrJobId],
   );
 
-  const job = jobMatches[0];
+  const ocrJob = ocrJobMatches[0];
 
   return (
     <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>
       <p>
         <Link to="/">← Back</Link>
       </p>
-      <h1>Job {jobId}</h1>
-      {job ? (
+      <h1>OCR job {ocrJobId}</h1>
+      {ocrJob ? (
         <p>
-          status: <strong>{job.status}</strong> · {job.total_pages} pages · {(job.size_bytes / 1024).toFixed(1)} KiB
-          {job.error ? ` · error: ${job.error}` : ''}
+          status: <strong>{ocrJob.status}</strong> · {ocrJob.total_pages} pages ·{' '}
+          {(ocrJob.size_bytes / 1024).toFixed(1)} KiB
+          {ocrJob.error ? ` · error: ${ocrJob.error}` : ''}
         </p>
       ) : (
         <p>loading…</p>
       )}
       <p>
-        <a href={`/api/jobs/${jobId}/source`} rel="noreferrer" target="_blank">
+        <a href={`/api/ocr-jobs/${ocrJobId}/upload`} rel="noreferrer" target="_blank">
           original PDF
         </a>
       </p>
       <hr />
-      {pages.map(page => (
-        <PageBlock jobId={jobId} key={page.page_number} page={page} />
+      {mdPages.map(mdPage => (
+        <MdPageBlock key={mdPage.page_number} mdPage={mdPage} ocrJobId={ocrJobId} />
       ))}
     </main>
   );
 };
 
-const PageBlock = ({ jobId, page }: { jobId: string; page: PageRow }) => {
+const MdPageBlock = ({ mdPage, ocrJobId }: { mdPage: MdPageRow; ocrJobId: string }) => {
   const [markdown, setMarkdown] = useState<string>();
 
   useEffect(() => {
-    if (page.status !== 'done' || !page.markdown_key) return;
+    if (mdPage.status !== 'done' || !mdPage.markdown_key) return;
     let cancelled = false;
     const load = async () => {
       try {
-        const r = await fetch(`/api/jobs/${jobId}/pages/${page.page_number}`);
+        const r = await fetch(`/api/ocr-jobs/${ocrJobId}/md-pages/${mdPage.page_number}`);
         if (!r.ok) return;
         const text = await r.text();
         if (!cancelled) setMarkdown(text);
@@ -72,21 +73,21 @@ const PageBlock = ({ jobId, page }: { jobId: string; page: PageRow }) => {
     return () => {
       cancelled = true;
     };
-  }, [jobId, page.page_number, page.status, page.markdown_key]);
+  }, [ocrJobId, mdPage.page_number, mdPage.status, mdPage.markdown_key]);
 
   return (
     <section style={{ marginBlock: '1.5rem' }}>
       <h2>
-        Page {page.page_number} — <em>{page.status}</em>
+        Page {mdPage.page_number} — <em>{mdPage.status}</em>
       </h2>
-      {page.status === 'failed' && <p style={{ color: 'crimson' }}>{page.error ?? 'failed'}</p>}
-      {page.status === 'pending' && <p>processing…</p>}
-      {page.status === 'done' && markdown !== undefined && <Markdown source={markdown} />}
-      {page.status === 'done' && markdown === undefined && <p>fetching markdown…</p>}
+      {mdPage.status === 'failed' && <p style={{ color: 'crimson' }}>{mdPage.error ?? 'failed'}</p>}
+      {mdPage.status === 'pending' && <p>processing…</p>}
+      {mdPage.status === 'done' && markdown !== undefined && <Markdown source={markdown} />}
+      {mdPage.status === 'done' && markdown === undefined && <p>fetching markdown…</p>}
     </section>
   );
 };
 
-export const Route = createFileRoute('/jobs/$jobId')({
-  component: JobPage,
+export const Route = createFileRoute('/ocr-jobs/$ocrJobId')({
+  component: OcrJobPage,
 });

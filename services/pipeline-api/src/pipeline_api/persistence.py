@@ -3,10 +3,10 @@ from __future__ import annotations
 import aiosqlite
 
 SCHEMA = """
-CREATE TABLE IF NOT EXISTS pipeline_jobs (
+CREATE TABLE IF NOT EXISTS pipeline_ocr_jobs (
   pipeline_id    TEXT PRIMARY KEY,
-  job_id         TEXT NOT NULL,
-  source_key     TEXT NOT NULL,
+  ocr_job_id     TEXT NOT NULL,
+  upload_key     TEXT NOT NULL,
   callback_url   TEXT NOT NULL,
   callback_token TEXT NOT NULL,
   status         TEXT NOT NULL,

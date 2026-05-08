@@ -25,40 +25,40 @@ async def submit(
     db = request.app.state.db
     await db.execute(
         """
-        INSERT INTO pipeline_jobs (
-          pipeline_id, job_id, source_key, callback_url, callback_token,
+        INSERT INTO pipeline_ocr_jobs (
+          pipeline_id, ocr_job_id, upload_key, callback_url, callback_token,
           status, created_at
         ) VALUES (?, ?, ?, ?, ?, 'processing', ?)
         """,
         (
             pipeline_id,
-            payload.job_id,
-            payload.source_key,
+            payload.ocr_job_id,
+            payload.upload_key,
             payload.callback_url,
             payload.callback_token,
             int(time.time()),
         ),
     )
     await db.commit()
-    background.add_task(_run_job, payload, pipeline_id, db)
+    background.add_task(_run_ocr_job, payload, pipeline_id, db)
     return PipelineSubmissionAck(pipeline_id=pipeline_id)
 
 
-@router.get("/jobs/{pipeline_id}")
-async def get_job(pipeline_id: str, request: Request) -> dict[str, str]:
+@router.get("/ocr-jobs/{pipeline_id}")
+async def get_ocr_job(pipeline_id: str, request: Request) -> dict[str, str]:
     db = request.app.state.db
     cursor = await db.execute(
-        "SELECT job_id, status FROM pipeline_jobs WHERE pipeline_id = ?",
+        "SELECT ocr_job_id, status FROM pipeline_ocr_jobs WHERE pipeline_id = ?",
         (pipeline_id,),
     )
     row = await cursor.fetchone()
     await cursor.close()
     if row is None:
         raise HTTPException(status_code=404, detail="unknown pipeline_id")
-    return {"pipeline_id": pipeline_id, "job_id": row[0], "status": row[1]}
+    return {"pipeline_id": pipeline_id, "ocr_job_id": row[0], "status": row[1]}
 
 
-async def _run_job(submission: PipelineSubmission, pipeline_id: str, db) -> None:
+async def _run_ocr_job(submission: PipelineSubmission, pipeline_id: str, db) -> None:
     try:
         from .ocr import run_ocr  # imported lazily so --mock images can skip torch
 
@@ -69,28 +69,28 @@ async def _run_job(submission: PipelineSubmission, pipeline_id: str, db) -> None
             submission.callback_token,
             PipelineCallback(
                 callback_id=str(ULID()),
-                job_id=submission.job_id,
+                ocr_job_id=submission.ocr_job_id,
                 status="done",
             ),
         )
         await db.execute(
-            "UPDATE pipeline_jobs SET status='done', completed_at=? WHERE pipeline_id=?",
+            "UPDATE pipeline_ocr_jobs SET status='done', completed_at=? WHERE pipeline_id=?",
             (int(time.time()), pipeline_id),
         )
     except Exception as exc:
-        logger.exception("pipeline job %s failed", pipeline_id)
+        logger.exception("pipeline ocr job %s failed", pipeline_id)
         await post_callback(
             submission.callback_url,
             submission.callback_token,
             PipelineCallback(
                 callback_id=str(ULID()),
-                job_id=submission.job_id,
+                ocr_job_id=submission.ocr_job_id,
                 status="failed",
                 error=str(exc),
             ),
         )
         await db.execute(
-            "UPDATE pipeline_jobs SET status='failed', completed_at=? WHERE pipeline_id=?",
+            "UPDATE pipeline_ocr_jobs SET status='failed', completed_at=? WHERE pipeline_id=?",
             (int(time.time()), pipeline_id),
         )
     finally:
@@ -101,7 +101,7 @@ async def _ocr_with_fallback(
     runner, submission: PipelineSubmission
 ) -> AsyncIterator[PipelineCallback]:
     try:
-        async for cb in runner(submission.source_key, submission.job_id):
+        async for cb in runner(submission.upload_key, submission.ocr_job_id):
             yield cb
     except NotImplementedError:
         # Real OCR stack isn't wired yet (no GPU image / no glmocr install).
@@ -109,7 +109,7 @@ async def _ocr_with_fallback(
         await asyncio.sleep(0)
         yield PipelineCallback(
             callback_id=str(ULID()),
-            job_id=submission.job_id,
+            ocr_job_id=submission.ocr_job_id,
             page_number=1,
             status="failed",
             error="real OCR pipeline not wired yet — use --mock for v0.1 dev loop",

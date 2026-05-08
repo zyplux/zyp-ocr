@@ -40,13 +40,13 @@ const putBlob = async (env: Env, b: Blob, body: Uint8Array) => {
 
 export const blob = {
   fetch: fetchBlob,
-  page: (jobId: string, page: number) => ({
+  mdPage: (ocrJobId: string, page: number) => ({
     contentType: MARKDOWN_CONTENT_TYPE,
-    key: `jobs/${jobId}/pages/${page}.md`,
+    key: `ocr-jobs/${ocrJobId}/md-pages/${page}.md`,
   }),
   put: putBlob,
-  source: (jobId: string) => ({
+  upload: (ocrJobId: string) => ({
     contentType: PDF_CONTENT_TYPE,
-    key: `jobs/${jobId}/source.pdf`,
+    key: `ocr-jobs/${ocrJobId}/upload.pdf`,
   }),
 };

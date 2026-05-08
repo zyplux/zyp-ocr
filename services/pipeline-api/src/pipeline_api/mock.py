@@ -33,10 +33,10 @@ async def _emit_canned_callbacks(submission: PipelineSubmission) -> None:
             submission.callback_token,
             PipelineCallback(
                 callback_id=str(ULID()),
-                job_id=submission.job_id,
+                ocr_job_id=submission.ocr_job_id,
                 page_number=page_number,
                 status="done",
-                markdown_key=f"jobs/{submission.job_id}/pages/{page_number}.md",
+                markdown_key=f"ocr-jobs/{submission.ocr_job_id}/md-pages/{page_number}.md",
             ),
         )
     await post_callback(
@@ -44,7 +44,7 @@ async def _emit_canned_callbacks(submission: PipelineSubmission) -> None:
         submission.callback_token,
         PipelineCallback(
             callback_id=str(ULID()),
-            job_id=submission.job_id,
+            ocr_job_id=submission.ocr_job_id,
             status="done",
         ),
     )
@@ -62,8 +62,8 @@ def make_router() -> APIRouter:
         background.add_task(_emit_canned_callbacks, payload)
         return PipelineSubmissionAck(pipeline_id=pipeline_id)
 
-    @router.get("/jobs/{pipeline_id}")
-    async def get_job(pipeline_id: str) -> dict[str, str]:
+    @router.get("/ocr-jobs/{pipeline_id}")
+    async def get_ocr_job(pipeline_id: str) -> dict[str, str]:
         return {"pipeline_id": pipeline_id, "status": "processing"}
 
     return router

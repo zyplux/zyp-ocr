@@ -13,31 +13,31 @@ import { getMessage } from '~/lib/error';
 export type ApplyCallbackInput = {
   callbackId: string;
   error?: string;
-  jobId: string;
   markdownKey?: string;
+  ocrJobId: string;
   pageNumber?: number;
   status: 'done' | 'failed';
 };
-export type CreateJobInput = {
-  jobId?: string;
+export type CreateOcrJobInput = {
+  ocrJobId?: string;
   sizeBytes: number;
-  sourceKeyTemplate: string;
   totalPages: number;
+  uploadKeyTemplate: string;
 };
 
-export type JobRow = typeof schema.jobs.$inferSelect;
-export type JobStatus = JobRow['status'];
-export type PageRow = typeof schema.job_pages.$inferSelect;
-export type PageStatus = PageRow['status'];
+export type MdPageRow = typeof schema.md_pages.$inferSelect;
+export type MdPageStatus = MdPageRow['status'];
+export type OcrJobRow = typeof schema.ocr_jobs.$inferSelect;
+export type OcrJobStatus = OcrJobRow['status'];
 
 export type Snapshot = {
-  jobs: JobRow[];
-  pages: PageRow[];
+  md_pages: MdPageRow[];
+  ocr_jobs: OcrJobRow[];
 };
 
 type Delta =
-  | { op: 'job-upsert'; row: JobRow }
-  | { op: 'page-upsert'; row: PageRow }
+  | { op: 'md-page-upsert'; row: MdPageRow }
+  | { op: 'ocr-job-upsert'; row: OcrJobRow }
   | { op: 'snapshot'; snapshot: Snapshot };
 
 const stripNulls = <T extends Record<string, unknown>>(row: T): T => {
@@ -63,15 +63,15 @@ export class UserDO extends DurableObject<Env> {
     const now = Date.now();
     const cutoff = now - this.reconcileTimeoutMs();
     const stale = await this.db
-      .select({ id: schema.jobs.id })
-      .from(schema.jobs)
-      .where(and(inArray(schema.jobs.status, ['pending', 'processing']), lt(schema.jobs.created_at, cutoff)));
-    for (const job of stale) {
+      .select({ id: schema.ocr_jobs.id })
+      .from(schema.ocr_jobs)
+      .where(and(inArray(schema.ocr_jobs.status, ['pending', 'processing']), lt(schema.ocr_jobs.created_at, cutoff)));
+    for (const ocrJob of stale) {
       await this.db
-        .update(schema.jobs)
+        .update(schema.ocr_jobs)
         .set({ completed_at: now, error: 'timeout', status: 'failed' })
-        .where(eq(schema.jobs.id, job.id));
-      this.broadcast({ op: 'job-upsert', row: await this.requireJob(job.id) });
+        .where(eq(schema.ocr_jobs.id, ocrJob.id));
+      this.broadcast({ op: 'ocr-job-upsert', row: await this.requireOcrJob(ocrJob.id) });
     }
     if ((await this.countInflight()) > 0) {
       await this.ctx.storage.setAlarm(now + this.reconcileTimeoutMs());
@@ -94,61 +94,62 @@ export class UserDO extends DurableObject<Env> {
 
     if (typeof input.pageNumber === 'number') {
       await this.db
-        .update(schema.job_pages)
+        .update(schema.md_pages)
         .set({
           error: input.error ?? sql`NULL`,
           markdown_key: input.markdownKey ?? sql`NULL`,
           status: input.status,
         })
-        .where(and(eq(schema.job_pages.job_id, input.jobId), eq(schema.job_pages.page_number, input.pageNumber)));
-      this.broadcast({ op: 'page-upsert', row: await this.requirePage(input.jobId, input.pageNumber) });
-      await this.maybeCompleteJob(input.jobId);
+        .where(and(eq(schema.md_pages.ocr_job_id, input.ocrJobId), eq(schema.md_pages.page_number, input.pageNumber)));
+      this.broadcast({ op: 'md-page-upsert', row: await this.requireMdPage(input.ocrJobId, input.pageNumber) });
+      await this.maybeCompleteOcrJob(input.ocrJobId);
       return;
     }
 
-    const finalStatus: JobStatus = input.status === 'failed' ? 'failed' : await this.deriveJobStatus(input.jobId);
+    const finalStatus: OcrJobStatus =
+      input.status === 'failed' ? 'failed' : await this.deriveOcrJobStatus(input.ocrJobId);
     await this.db
-      .update(schema.jobs)
+      .update(schema.ocr_jobs)
       .set({
         completed_at: Date.now(),
         error: input.error ?? sql`NULL`,
         status: finalStatus,
       })
-      .where(eq(schema.jobs.id, input.jobId));
-    this.broadcast({ op: 'job-upsert', row: await this.requireJob(input.jobId) });
+      .where(eq(schema.ocr_jobs.id, input.ocrJobId));
+    this.broadcast({ op: 'ocr-job-upsert', row: await this.requireOcrJob(input.ocrJobId) });
   }
 
-  async createJob(input: CreateJobInput) {
+  async createOcrJob(input: CreateOcrJobInput) {
     const inflight = await this.countInflight();
     if (inflight >= MAX_INFLIGHT_JOBS) {
       throw new Error(`too many in-flight jobs (max ${MAX_INFLIGHT_JOBS})`);
     }
-    const jobId = input.jobId ?? ulid();
-    const sourceKey = input.sourceKeyTemplate.replace('{jobId}', jobId);
+    const ocrJobId = input.ocrJobId ?? ulid();
+    const uploadKey = input.uploadKeyTemplate.replace('{ocrJobId}', ocrJobId);
     const now = Date.now();
-    await this.db.insert(schema.jobs).values({
+    await this.db.insert(schema.ocr_jobs).values({
       created_at: now,
-      id: jobId,
+      id: ocrJobId,
       size_bytes: input.sizeBytes,
-      source_key: sourceKey,
       status: 'pending',
       total_pages: input.totalPages,
+      upload_key: uploadKey,
     });
     const pageValues = Array.from({ length: input.totalPages }, (_, i) => ({
-      job_id: jobId,
+      ocr_job_id: ocrJobId,
       page_number: i + 1,
       status: 'pending' as const,
     }));
     if (pageValues.length > 0) {
-      await this.db.insert(schema.job_pages).values(pageValues);
+      await this.db.insert(schema.md_pages).values(pageValues);
     }
-    this.broadcast({ op: 'job-upsert', row: await this.requireJob(jobId) });
+    this.broadcast({ op: 'ocr-job-upsert', row: await this.requireOcrJob(ocrJobId) });
     for (let n = 1; n <= input.totalPages; n++) {
-      this.broadcast({ op: 'page-upsert', row: await this.requirePage(jobId, n) });
+      this.broadcast({ op: 'md-page-upsert', row: await this.requireMdPage(ocrJobId, n) });
     }
     await this.scheduleReconcile();
-    this.ctx.waitUntil(this.submitToPipeline(jobId));
-    return { jobId };
+    this.ctx.waitUntil(this.submitToPipeline(ocrJobId));
+    return { ocrJobId };
   }
 
   override fetch(request: Request) {
@@ -159,12 +160,12 @@ export class UserDO extends DurableObject<Env> {
     return Promise.resolve(new Response('not found', { status: 404 }));
   }
 
-  async setPipelineId(jobId: string, pipelineId: string) {
+  async setPipelineId(ocrJobId: string, pipelineId: string) {
     await this.db
-      .update(schema.jobs)
+      .update(schema.ocr_jobs)
       .set({ pipeline_id: pipelineId, started_at: Date.now(), status: 'processing' })
-      .where(eq(schema.jobs.id, jobId));
-    this.broadcast({ op: 'job-upsert', row: await this.requireJob(jobId) });
+      .where(eq(schema.ocr_jobs.id, ocrJobId));
+    this.broadcast({ op: 'ocr-job-upsert', row: await this.requireOcrJob(ocrJobId) });
   }
 
   async signTokenFor(claims: Omit<CallbackClaims, 'exp'>) {
@@ -202,18 +203,18 @@ export class UserDO extends DurableObject<Env> {
   private async countInflight() {
     const [row] = await this.db
       .select({ c: count() })
-      .from(schema.jobs)
-      .where(inArray(schema.jobs.status, ['pending', 'processing']));
+      .from(schema.ocr_jobs)
+      .where(inArray(schema.ocr_jobs.status, ['pending', 'processing']));
     return row?.c ?? 0;
   }
 
   // ---- Internals ----------------------------------------------------------
 
-  private async deriveJobStatus(jobId: string) {
+  private async deriveOcrJobStatus(ocrJobId: string) {
     const [row] = await this.db
       .select({ c: count() })
-      .from(schema.job_pages)
-      .where(and(eq(schema.job_pages.job_id, jobId), eq(schema.job_pages.status, 'failed')));
+      .from(schema.md_pages)
+      .where(and(eq(schema.md_pages.ocr_job_id, ocrJobId), eq(schema.md_pages.status, 'failed')));
     return (row?.c ?? 0) > 0 ? 'failed' : 'done';
   }
 
@@ -227,27 +228,30 @@ export class UserDO extends DurableObject<Env> {
     return new Response(undefined, { status: 101, webSocket: client });
   }
 
-  private async maybeCompleteJob(jobId: string) {
+  private async maybeCompleteOcrJob(ocrJobId: string) {
     const [pending] = await this.db
       .select({ c: count() })
-      .from(schema.job_pages)
-      .where(and(eq(schema.job_pages.job_id, jobId), eq(schema.job_pages.status, 'pending')));
+      .from(schema.md_pages)
+      .where(and(eq(schema.md_pages.ocr_job_id, ocrJobId), eq(schema.md_pages.status, 'pending')));
     if (!pending || pending.c > 0) return;
-    const status = await this.deriveJobStatus(jobId);
+    const status = await this.deriveOcrJobStatus(ocrJobId);
     await this.db
-      .update(schema.jobs)
+      .update(schema.ocr_jobs)
       .set({ completed_at: Date.now(), status })
-      .where(eq(schema.jobs.id, jobId));
-    this.broadcast({ op: 'job-upsert', row: await this.requireJob(jobId) });
+      .where(eq(schema.ocr_jobs.id, ocrJobId));
+    this.broadcast({ op: 'ocr-job-upsert', row: await this.requireOcrJob(ocrJobId) });
   }
 
   private async readSnapshot() {
-    const jobs = await this.db.select().from(schema.jobs).orderBy(desc(schema.jobs.created_at));
-    const pages = await this.db
+    const ocr_jobs = await this.db.select().from(schema.ocr_jobs).orderBy(desc(schema.ocr_jobs.created_at));
+    const md_pages = await this.db
       .select()
-      .from(schema.job_pages)
-      .orderBy(schema.job_pages.job_id, schema.job_pages.page_number);
-    return { jobs: jobs.map(j => stripNulls(j)), pages: pages.map(p => stripNulls(p)) } satisfies Snapshot;
+      .from(schema.md_pages)
+      .orderBy(schema.md_pages.ocr_job_id, schema.md_pages.page_number);
+    return {
+      md_pages: md_pages.map(p => stripNulls(p)),
+      ocr_jobs: ocr_jobs.map(j => stripNulls(j)),
+    } satisfies Snapshot;
   }
 
   private reconcileTimeoutMs() {
@@ -255,19 +259,19 @@ export class UserDO extends DurableObject<Env> {
     return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : DEFAULT_RECONCILE_TIMEOUT_SECONDS * 1000;
   }
 
-  private async requireJob(jobId: string) {
-    const [row] = await this.db.select().from(schema.jobs).where(eq(schema.jobs.id, jobId)).limit(1);
-    if (!row) throw new Error(`job not found: ${jobId}`);
+  private async requireMdPage(ocrJobId: string, pageNumber: number) {
+    const [row] = await this.db
+      .select()
+      .from(schema.md_pages)
+      .where(and(eq(schema.md_pages.ocr_job_id, ocrJobId), eq(schema.md_pages.page_number, pageNumber)))
+      .limit(1);
+    if (!row) throw new Error(`md page not found: ${ocrJobId}/${pageNumber}`);
     return stripNulls(row);
   }
 
-  private async requirePage(jobId: string, pageNumber: number) {
-    const [row] = await this.db
-      .select()
-      .from(schema.job_pages)
-      .where(and(eq(schema.job_pages.job_id, jobId), eq(schema.job_pages.page_number, pageNumber)))
-      .limit(1);
-    if (!row) throw new Error(`page not found: ${jobId}/${pageNumber}`);
+  private async requireOcrJob(ocrJobId: string) {
+    const [row] = await this.db.select().from(schema.ocr_jobs).where(eq(schema.ocr_jobs.id, ocrJobId)).limit(1);
+    if (!row) throw new Error(`ocr job not found: ${ocrJobId}`);
     return stripNulls(row);
   }
 
@@ -277,20 +281,20 @@ export class UserDO extends DurableObject<Env> {
     await this.ctx.storage.setAlarm(Date.now() + this.reconcileTimeoutMs());
   }
 
-  private async submitToPipeline(jobId: string) {
-    const job = await this.requireJob(jobId);
+  private async submitToPipeline(ocrJobId: string) {
+    const ocrJob = await this.requireOcrJob(ocrJobId);
     const callbackId = ulid();
     const token = await this.signTokenFor({
       callbackId,
-      jobId,
+      ocrJobId,
       userId: DEFAULT_USER_ID,
     });
     const callbackBase = this.env.WORKER_INTERNAL_BASE ?? this.env.PUBLIC_BASE;
     const payload = {
       callback_token: token,
       callback_url: `${callbackBase}/api/pipeline/callback`,
-      job_id: jobId,
-      source_key: job.source_key,
+      ocr_job_id: ocrJobId,
+      upload_key: ocrJob.upload_key,
     };
     try {
       const res = await fetch(`${this.env.PIPELINE_BASE}/submit`, {
@@ -303,17 +307,17 @@ export class UserDO extends DurableObject<Env> {
         throw new Error(`pipeline /submit: ${res.status} ${body}`);
       }
       const ack: { pipeline_id: string } = await res.json();
-      await this.setPipelineId(jobId, ack.pipeline_id);
+      await this.setPipelineId(ocrJobId, ack.pipeline_id);
     } catch (err) {
       await this.db
-        .update(schema.jobs)
+        .update(schema.ocr_jobs)
         .set({
           completed_at: Date.now(),
           error: getMessage(err, 'pipeline submit'),
           status: 'failed',
         })
-        .where(eq(schema.jobs.id, jobId));
-      this.broadcast({ op: 'job-upsert', row: await this.requireJob(jobId) });
+        .where(eq(schema.ocr_jobs.id, ocrJobId));
+      this.broadcast({ op: 'ocr-job-upsert', row: await this.requireOcrJob(ocrJobId) });
     }
   }
 }

@@ -6,7 +6,7 @@ describe('callback-token', () => {
   const claims = {
     callbackId: '01CBID',
     exp: Math.floor(Date.now() / 1000) + 60,
-    jobId: '01HABC',
+    ocrJobId: '01HABC',
     pageNumber: 3,
     userId: 'default',
   };

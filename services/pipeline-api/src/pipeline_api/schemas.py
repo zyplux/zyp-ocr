@@ -12,8 +12,8 @@ from pydantic import BaseModel
 
 
 class PipelineSubmission(BaseModel):
-    job_id: str
-    source_key: str
+    ocr_job_id: str
+    upload_key: str
     callback_url: str
     callback_token: str
 
@@ -24,7 +24,7 @@ class PipelineSubmissionAck(BaseModel):
 
 class PipelineCallback(BaseModel):
     callback_id: str
-    job_id: str
+    ocr_job_id: str
     page_number: int | None = None
     status: Literal["done", "failed"]
     markdown_key: str | None = None

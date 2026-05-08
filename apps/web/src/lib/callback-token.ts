@@ -1,12 +1,12 @@
 // HMAC-SHA256 signing/verification for pipeline callback tokens.
-// Claims: { userId, jobId, pageNumber?, callbackId, exp }
+// Claims: { userId, ocrJobId, pageNumber?, callbackId, exp }
 // Format: base64url(JSON(claims)) "." base64url(HMAC-SHA256(claims))
 // See plan/totvibe-ocr.md §6 ("Signed callback tokens").
 
 export type CallbackClaims = {
   callbackId: string;
   exp: number;
-  jobId: string;
+  ocrJobId: string;
   pageNumber?: number;
   userId: string;
 };

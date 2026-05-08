@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 from .schemas import PipelineCallback
 
 
-async def run_ocr(_pdf_path: str, _job_id: str) -> AsyncIterator[PipelineCallback]:
+async def run_ocr(_pdf_path: str, _ocr_job_id: str) -> AsyncIterator[PipelineCallback]:
     """Run glmocr page-by-page and yield per-page completion records."""
     raise NotImplementedError
     if False:  # pragma: no cover

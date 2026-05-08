@@ -1,19 +1,19 @@
-// TanStack DB collections for jobs + per-page rows.
+// TanStack DB collections for ocr_jobs + per-md_page rows.
 // Hydrates via GET /api/me/items, stays live via WS /api/me/ws.
 // Exponential-backoff reconnect; refetches the snapshot after every reconnect.
 
 import { createCollection } from '@tanstack/db';
 
-import type { JobRow, PageRow, Snapshot } from '~/durable-objects/user-do';
+import type { MdPageRow, OcrJobRow, Snapshot } from '~/durable-objects/user-do';
 
 import { WS_RECONNECT_BASE_MS, WS_RECONNECT_MAX_EXPONENT, WS_RECONNECT_MAX_MS } from '~/constants';
 
 type Delta =
-  | { op: 'job-upsert'; row: JobRow }
-  | { op: 'page-upsert'; row: PageRow }
+  | { op: 'md-page-upsert'; row: MdPageRow }
+  | { op: 'ocr-job-upsert'; row: OcrJobRow }
   | { op: 'snapshot'; snapshot: Snapshot };
 
-const pageId = (job: string, n: number) => `${job}#${n}`;
+const mdPageId = (ocrJob: string, n: number) => `${ocrJob}#${n}`;
 
 type Writer<T extends object> = {
   begin: () => void;
@@ -22,20 +22,20 @@ type Writer<T extends object> = {
   write: (msg: { type: 'insert' | 'update'; value: T }) => void;
 };
 
-let jobsWriter: undefined | Writer<JobRow>;
-let pagesWriter: undefined | Writer<PageRow>;
+let ocrJobsWriter: undefined | Writer<OcrJobRow>;
+let mdPagesWriter: undefined | Writer<MdPageRow>;
 let teardown: (() => void) | undefined;
 
 const applySnapshot = (snap: Snapshot) => {
-  if (jobsWriter) {
-    jobsWriter.begin();
-    for (const row of snap.jobs) jobsWriter.write({ type: 'insert', value: row });
-    jobsWriter.commit();
+  if (ocrJobsWriter) {
+    ocrJobsWriter.begin();
+    for (const row of snap.ocr_jobs) ocrJobsWriter.write({ type: 'insert', value: row });
+    ocrJobsWriter.commit();
   }
-  if (pagesWriter) {
-    pagesWriter.begin();
-    for (const row of snap.pages) pagesWriter.write({ type: 'insert', value: row });
-    pagesWriter.commit();
+  if (mdPagesWriter) {
+    mdPagesWriter.begin();
+    for (const row of snap.md_pages) mdPagesWriter.write({ type: 'insert', value: row });
+    mdPagesWriter.commit();
   }
 };
 
@@ -44,16 +44,16 @@ const applyDelta = (delta: Delta) => {
     applySnapshot(delta.snapshot);
     return;
   }
-  if (delta.op === 'job-upsert' && jobsWriter) {
-    jobsWriter.begin();
-    jobsWriter.write({ type: 'update', value: delta.row });
-    jobsWriter.commit();
+  if (delta.op === 'ocr-job-upsert' && ocrJobsWriter) {
+    ocrJobsWriter.begin();
+    ocrJobsWriter.write({ type: 'update', value: delta.row });
+    ocrJobsWriter.commit();
     return;
   }
-  if (delta.op === 'page-upsert' && pagesWriter) {
-    pagesWriter.begin();
-    pagesWriter.write({ type: 'update', value: delta.row });
-    pagesWriter.commit();
+  if (delta.op === 'md-page-upsert' && mdPagesWriter) {
+    mdPagesWriter.begin();
+    mdPagesWriter.write({ type: 'update', value: delta.row });
+    mdPagesWriter.commit();
   }
 };
 
@@ -62,8 +62,8 @@ const fetchSnapshot = async () => {
   if (!res.ok) throw new Error(`hydrate failed: ${res.status}`);
   const snap: Snapshot = await res.json();
   applySnapshot(snap);
-  jobsWriter?.markReady();
-  pagesWriter?.markReady();
+  ocrJobsWriter?.markReady();
+  mdPagesWriter?.markReady();
 };
 
 const openLiveStream = () => {
@@ -127,28 +127,28 @@ const openLiveStream = () => {
 };
 
 const maybeStart = () => {
-  if (jobsWriter && pagesWriter && !teardown) {
+  if (ocrJobsWriter && mdPagesWriter && !teardown) {
     teardown = openLiveStream();
   }
 };
 
-export const jobsCollection = createCollection<JobRow, string>({
+export const ocrJobsCollection = createCollection<OcrJobRow, string>({
   getKey: row => row.id,
-  id: 'jobs',
+  id: 'ocr_jobs',
   sync: {
     sync: ({ begin, commit, markReady, write }) => {
-      jobsWriter = { begin, commit, markReady, write: write as Writer<JobRow>['write'] };
+      ocrJobsWriter = { begin, commit, markReady, write: write as Writer<OcrJobRow>['write'] };
       maybeStart();
     },
   },
 });
 
-export const pagesCollection = createCollection<PageRow, string>({
-  getKey: row => pageId(row.job_id, row.page_number),
-  id: 'job-pages',
+export const mdPagesCollection = createCollection<MdPageRow, string>({
+  getKey: row => mdPageId(row.ocr_job_id, row.page_number),
+  id: 'md_pages',
   sync: {
     sync: ({ begin, commit, markReady, write }) => {
-      pagesWriter = { begin, commit, markReady, write: write as Writer<PageRow>['write'] };
+      mdPagesWriter = { begin, commit, markReady, write: write as Writer<MdPageRow>['write'] };
       maybeStart();
     },
   },
