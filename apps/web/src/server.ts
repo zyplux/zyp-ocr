@@ -1,18 +1,17 @@
 import type { Context, MiddlewareHandler } from 'hono';
 
-import { GetObjectCommand, NoSuchKey, PutObjectCommand } from '@aws-sdk/client-s3';
 import { zValidator } from '@hono/zod-validator';
 import { createStartHandler, defaultStreamHandler } from '@tanstack/react-start/server';
 import { Hono } from 'hono';
+import { createFactory } from 'hono/factory';
 import { ulid } from 'ulid';
+import { z } from 'zod';
 
 import type { ApplyCallbackInput } from '~/durable-objects/user-do';
 import type { CallbackClaims } from '~/lib/callback-token';
 
 import {
-  BLOB_CACHE_CONTROL,
   DEFAULT_USER_ID,
-  MARKDOWN_CONTENT_TYPE,
   MAX_PAGES,
   MAX_PDF_BYTES,
   MAX_PDF_MB,
@@ -22,7 +21,7 @@ import { PipelineCallback } from '~/contracts';
 import { verifyCallbackToken } from '~/lib/callback-token';
 import { getMessage } from '~/lib/error';
 import { estimatePageCount } from '~/lib/pdf-pages';
-import { makeS3Client, pageKey, sourceKey } from '~/lib/s3';
+import { blob } from '~/lib/s3';
 
 export { UserDO } from '~/durable-objects/user-do';
 
@@ -56,15 +55,7 @@ const handleCreateJob = async (c: Context<App>) => {
   }
 
   const jobId = ulid();
-  const s3 = makeS3Client(c.env);
-  await s3.send(
-    new PutObjectCommand({
-      Body: bytes,
-      Bucket: c.env.S3_BUCKET,
-      ContentType: PDF_CONTENT_TYPE,
-      Key: sourceKey(jobId),
-    }),
-  );
+  await blob.put(c.env, blob.source(jobId), bytes);
 
   const result = await userStub(c.env).createJob({
     jobId,
@@ -105,66 +96,61 @@ const requireCallbackToken: MiddlewareHandler<App> = async (c, next) => {
   await next();
 };
 
-const proxyBlob = async (env: Env, key: string, contentType: string) => {
-  const s3 = makeS3Client(env);
-  try {
-    const obj = await s3.send(new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: key }));
-    const body = obj.Body as ReadableStream | undefined;
-    if (!body) return new Response('not found', { status: 404 });
-    return new Response(body, {
-      headers: {
-        'cache-control': BLOB_CACHE_CONTROL,
-        'content-type': contentType,
-      },
-      status: 200,
-    });
-  } catch (err) {
-    if (err instanceof NoSuchKey) return new Response('not found', { status: 404 });
-    throw err;
-  }
-};
+const factory = createFactory<App>();
+
+const pipelineCallbackHandlers = factory.createHandlers(
+  requireCallbackToken,
+  zValidator('json', PipelineCallback, (result, c) => {
+    if (!result.success) {
+      return c.json({ details: result.error.issues, error: 'invalid callback payload' }, 400);
+    }
+  }),
+  async c => {
+    const claims = c.var.claims;
+    const data = c.req.valid('json');
+    if (data.job_id !== claims.jobId) {
+      return c.json({ error: 'token / payload job mismatch' }, 403);
+    }
+    const input: ApplyCallbackInput = {
+      callbackId: data.callback_id,
+      jobId: data.job_id,
+      status: data.status,
+      ...(data.page_number != undefined && { pageNumber: data.page_number }),
+      ...(data.markdown_key && { markdownKey: data.markdown_key }),
+      ...(data.error && { error: data.error }),
+    };
+    await userStub(c.env).applyCallback(input);
+    return c.json({ ok: true });
+  },
+);
+
+const JobIdSchema = z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+
+const JobParams = z.object({ jobId: JobIdSchema });
+const PageParams = z.object({
+  jobId: JobIdSchema,
+  page: z.coerce.number().int().min(1).max(MAX_PAGES),
+});
+
+const blobRoute = <S extends z.ZodType>(
+  schema: S,
+  toBlob: (params: z.output<S>) => { contentType: string; key: string },
+) =>
+  factory.createHandlers(
+    zValidator('param', schema, (result, c) => {
+      if (!result.success) return c.json({ error: 'invalid path params' }, 400);
+    }),
+    c => blob.fetch(c.env, toBlob(c.req.valid('param'))),
+  );
 
 const api = new Hono<App>()
   .post('/api/jobs', handleCreateJob)
   .get('/api/me/items', handleSnapshot)
   .all('/api/me/ws', handleWebSocket)
-  .post(
-    '/api/pipeline/callback',
-    requireCallbackToken,
-    zValidator('json', PipelineCallback, (result, c) => {
-      if (!result.success) {
-        return c.json({ details: result.error.issues, error: 'invalid callback payload' }, 400);
-      }
-    }),
-    async c => {
-      const claims = c.var.claims;
-      const data = c.req.valid('json');
-      if (data.job_id !== claims.jobId) {
-        return c.json({ error: 'token / payload job mismatch' }, 403);
-      }
-      const input: ApplyCallbackInput = {
-        callbackId: data.callback_id,
-        jobId: data.job_id,
-        status: data.status,
-        ...(data.page_number != undefined && { pageNumber: data.page_number }),
-        ...(data.markdown_key && { markdownKey: data.markdown_key }),
-        ...(data.error && { error: data.error }),
-      };
-      await userStub(c.env).applyCallback(input);
-      return c.json({ ok: true });
-    },
-  )
-  .get('/api/jobs/:jobId/source', c => proxyBlob(c.env, sourceKey(c.req.param('jobId')), PDF_CONTENT_TYPE))
-  .get('/api/jobs/:jobId/pages/:page', c => {
-    const page = Number.parseInt(c.req.param('page'), 10);
-    return proxyBlob(c.env, pageKey(c.req.param('jobId'), page), MARKDOWN_CONTENT_TYPE);
-  });
+  .post('/api/pipeline/callback', ...pipelineCallbackHandlers)
+  .get('/api/jobs/:jobId/source', ...blobRoute(JobParams, p => blob.source(p.jobId)))
+  .get('/api/jobs/:jobId/pages/:page', ...blobRoute(PageParams, p => blob.page(p.jobId, p.page)))
+  .all('/api/*', c => c.json({ error: 'not found' }, 404))
+  .all('*', c => startHandler(c.req.raw));
 
-export default {
-  fetch: async (request, env, ctx) => {
-    if (new URL(request.url).pathname.startsWith('/api/')) {
-      return api.fetch(request, env, ctx);
-    }
-    return startHandler(request);
-  },
-} satisfies ExportedHandler<Env>;
+export default api satisfies ExportedHandler<Env>;
