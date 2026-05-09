@@ -11,6 +11,16 @@ export type ResultClaims = {
   userId: string;
 };
 
+const isResultClaims = (x: unknown): x is ResultClaims => {
+  if (x === null || typeof x !== 'object') return false;
+  if (!('exp' in x) || typeof x.exp !== 'number') return false;
+  if (!('ocrJobId' in x) || typeof x.ocrJobId !== 'string') return false;
+  if (!('resultId' in x) || typeof x.resultId !== 'string') return false;
+  if (!('userId' in x) || typeof x.userId !== 'string') return false;
+  if ('pageNumber' in x && x.pageNumber !== undefined && typeof x.pageNumber !== 'number') return false;
+  return true;
+};
+
 const encoder = new TextEncoder();
 
 const base64UrlEncode = (bytes: Uint8Array) => {
@@ -69,9 +79,8 @@ export const verifyResultToken = async (token: string, secrets: readonly string[
   if (!matched) throw new Error('invalid signature');
 
   const claimsJson = new TextDecoder().decode(base64UrlDecode(header));
-  const claims = JSON.parse(claimsJson) as ResultClaims;
-  if (typeof claims.exp !== 'number' || claims.exp * 1000 < Date.now()) {
-    throw new Error('token expired');
-  }
+  const claims: unknown = JSON.parse(claimsJson);
+  if (!isResultClaims(claims)) throw new Error('malformed token');
+  if (claims.exp * 1000 < Date.now()) throw new Error('token expired');
   return claims;
 };

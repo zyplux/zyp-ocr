@@ -48,28 +48,21 @@ type Delta =
   | { op: 'ocr-job-upsert'; row: OcrJobRow }
   | { op: 'snapshot'; snapshot: Snapshot };
 
-const stripNulls = <T extends Record<string, unknown>>(row: T): T => {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(row)) {
-    if (v !== null) out[k] = v;
-  }
-  return out as T;
-};
-
 const withOcrJobStatus = (row: schema.OcrJobDbRow) => ({
-  ...stripNulls(row),
+  ...row,
   status: schema.deriveOcrJobStatus(row),
 });
 
 const withMdPageStatus = (row: schema.MdPageDbRow) => ({
-  ...stripNulls(row),
+  ...row,
   status: schema.deriveMdPageStatus(row),
 });
 
 const PAGES_FAILED_REASON = 'one or more pages failed';
 
 const sseEncoder = new TextEncoder();
-const formatSseEvent = (delta: Delta) => sseEncoder.encode(`data: ${JSON.stringify(delta)}\n\n`);
+const omitNulls = (_: string, value: unknown) => (value === null ? undefined : value);
+const formatSseEvent = (delta: Delta) => sseEncoder.encode(`data: ${JSON.stringify(delta, omitNulls)}\n\n`);
 
 export class UserDO extends DurableObject<Env> {
   private db: DrizzleSqliteDODatabase<typeof schema>;

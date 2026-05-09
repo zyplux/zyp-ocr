@@ -9,6 +9,13 @@ type Delta =
   | { op: 'ocr-job-upsert'; row: OcrJobRow }
   | { op: 'snapshot'; snapshot: Snapshot };
 
+const isDelta = (x: unknown): x is Delta => {
+  if (x === null || typeof x !== 'object' || !('op' in x)) return false;
+  if (x.op === 'snapshot') return 'snapshot' in x;
+  if (x.op === 'ocr-job-upsert' || x.op === 'md-page-upsert') return 'row' in x;
+  return false;
+};
+
 type SyncApi<T extends object> = {
   begin: () => void;
   commit: () => void;
@@ -71,8 +78,11 @@ const startSourceIfReady = () => {
   source = new EventSource(STATE_STREAM_URL, { withCredentials: true });
   source.addEventListener('message', event => {
     try {
-      const data = event.data as string;
-      applyDelta(JSON.parse(data) as Delta);
+      const raw: unknown = event.data;
+      if (typeof raw !== 'string') return;
+      const parsed: unknown = JSON.parse(raw);
+      if (!isDelta(parsed)) return;
+      applyDelta(parsed);
     } catch {
       /* ignore malformed frames */
     }
@@ -91,7 +101,7 @@ export const ocrJobsCollection = createCollection<OcrJobRow, string>({
   id: 'ocr_jobs',
   sync: {
     sync: ({ begin, commit, markReady, write }) => {
-      subs.ocrJobs = { begin, commit, markReady, write: write as SyncApi<OcrJobRow>['write'] };
+      subs.ocrJobs = { begin, commit, markReady, write };
       startSourceIfReady();
       return () => {
         delete subs.ocrJobs;
@@ -106,7 +116,7 @@ export const mdPagesCollection = createCollection<MdPageRow, string>({
   id: 'md_pages',
   sync: {
     sync: ({ begin, commit, markReady, write }) => {
-      subs.mdPages = { begin, commit, markReady, write: write as SyncApi<MdPageRow>['write'] };
+      subs.mdPages = { begin, commit, markReady, write };
       startSourceIfReady();
       return () => {
         delete subs.mdPages;

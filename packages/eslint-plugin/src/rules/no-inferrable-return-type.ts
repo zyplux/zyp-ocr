@@ -23,27 +23,18 @@ const getFunctionName = (node: FunctionWithReturnType) => {
   return;
 };
 
-// Generic AST tree-walker: TSESTree.Node is a discriminated union that doesn't
-// allow keyed access; we treat it as an open Record at runtime. Children with a
-// `type` discriminator are recursively walked, so the cast is the only way to
-// express "any AST child node" structurally.
+const isAstNode = (x: unknown): x is TSESTree.Node =>
+  x !== null && typeof x === 'object' && 'type' in x && typeof x.type === 'string';
+
 const traverse = (node: TSESTree.Node, visit: (n: TSESTree.Node) => boolean): boolean => {
   if (visit(node)) return true;
-  for (const key of Object.keys(node)) {
+  for (const [key, value] of Object.entries(node)) {
     if (key === 'parent' || key === 'loc' || key === 'range') continue;
-    const value = (node as unknown as Record<string, unknown>)[key];
     if (Array.isArray(value)) {
       for (const item of value) {
-        if (item !== null && typeof item === 'object' && 'type' in item && traverse(item as TSESTree.Node, visit)) {
-          return true;
-        }
+        if (isAstNode(item) && traverse(item, visit)) return true;
       }
-    } else if (
-      value !== null &&
-      typeof value === 'object' &&
-      'type' in value &&
-      traverse(value as TSESTree.Node, visit)
-    ) {
+    } else if (isAstNode(value) && traverse(value, visit)) {
       return true;
     }
   }
