@@ -7,12 +7,22 @@ import { fileURLToPath } from 'node:url';
 
 type ConfigWithExtends = Parameters<typeof defineConfig>[number];
 import totvibe from '@totvibe/eslint-plugin';
+import prettierConfig from 'eslint-config-prettier';
 import perfectionist from 'eslint-plugin-perfectionist';
 import preferArrowFunctions from 'eslint-plugin-prefer-arrow-functions';
 import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 import unicorn from 'eslint-plugin-unicorn';
 import tseslint from 'typescript-eslint';
+
+// `eslint/config`'s `defineConfig` requires `ESLint.Plugin` whose `rules` index
+// is `RuleDefinition<RuleDefinitionTypeOptions>`. typescript-eslint plugins
+// (ours and upstream) use `LooseRuleDefinition` which carries richer context
+// type parameters. The two are runtime-equivalent and structurally compatible
+// at the JS boundary; the type incompatibility is cosmetic. This is the only
+// place we cross that boundary.
+// eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+const asEslintPlugin = (plugin: { rules?: unknown }) => plugin as ESLint.Plugin;
 
 const catalogVersion = (pkg: string) => {
   const workspace = readFileSync(fileURLToPath(new URL('pnpm-workspace.yaml', import.meta.url)), 'utf8');
@@ -25,9 +35,7 @@ const catalogVersion = (pkg: string) => {
   return match[1];
 };
 
-const arrowFunctionsPlugin: ESLint.Plugin = {
-  rules: preferArrowFunctions.rules as ESLint.Plugin['rules'],
-};
+const arrowFunctionsPlugin = asEslintPlugin({ rules: preferArrowFunctions.rules });
 
 const reactRecommended = react.configs.flat.recommended;
 if (!reactRecommended) {
@@ -80,6 +88,7 @@ const typescriptConfig = {
     },
   },
   rules: {
+    '@typescript-eslint/consistent-type-assertions': ['error', { assertionStyle: 'never' }],
     '@typescript-eslint/consistent-type-definitions': ['error', 'type'],
     '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
   },
@@ -120,7 +129,7 @@ const tanstackRoutesConfig = {
 
 const totvibeConfig = {
   files: ['**/*.{ts,tsx}'],
-  plugins: { '@totvibe': totvibe },
+  plugins: { '@totvibe': asEslintPlugin(totvibe) },
   rules: {
     '@totvibe/no-inferrable-return-type': 'error',
   },
@@ -135,4 +144,8 @@ export default defineConfig(
   unicornConfig,
   tanstackRoutesConfig,
   totvibeConfig,
+  // Disables stylistic rules that overlap with prettier (we run prettier
+  // separately via `pnpm format`). Must come last so it overrides preceding
+  // configs. Source: https://github.com/prettier/eslint-config-prettier
+  prettierConfig,
 );

@@ -2,18 +2,18 @@ from __future__ import annotations
 
 import httpx
 
-from .schemas import PipelineCallback
+from .schemas import TranscriptionResult
 
 
-async def post_callback(
-    callback_url: str,
-    callback_token: str,
-    payload: PipelineCallback,
+async def post_result(
+    result_url: str,
+    result_token: str,
+    payload: TranscriptionResult,
 ) -> None:
     async with httpx.AsyncClient(timeout=10.0) as client:
         response = await client.post(
-            callback_url,
+            result_url,
             json=payload.model_dump(exclude_none=True),
-            headers={"x-callback-token": callback_token},
+            headers={"x-result-token": result_token},
         )
         response.raise_for_status()

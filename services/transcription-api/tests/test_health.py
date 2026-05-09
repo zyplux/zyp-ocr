@@ -1,5 +1,5 @@
 from fastapi.testclient import TestClient
-from pipeline_api.app import create_app
+from transcription_api.app import create_app
 
 
 def test_healthz_returns_ok() -> None:

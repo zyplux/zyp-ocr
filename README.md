@@ -1,6 +1,6 @@
 # totvibe-ocr
 
-Scanned PDFs in, markdown out, page-by-page over WebSocket. See [`plan/totvibe-ocr.md`](./plan/totvibe-ocr.md) for the architecture and [`plan/project-structure.md`](./plan/done/001-proj-struct.md) for the repo layout.
+Scanned PDFs in, markdown out, page-by-page via a TanStack DB live collection backed by an SSE state stream. See [`plan/totvibe-ocr.md`](./plan/totvibe-ocr.md) for the architecture and [`plan/project-structure.md`](./plan/done/001-proj-struct.md) for the repo layout.
 
 ## Prerequisites
 
@@ -9,7 +9,7 @@ Scanned PDFs in, markdown out, page-by-page over WebSocket. See [`plan/totvibe-o
 - Python 3.14 (`.python-version`)
 - uv 0.11+
 - podman + podman-compose
-- NVIDIA Container Toolkit (only for the real GPU pipeline; not needed for `dev-mock`)
+- NVIDIA Container Toolkit (only for the real GPU transcription path; not needed for `dev-mock`)
 
 ## Quick start
 

@@ -51,12 +51,12 @@ format:
     pnpm exec prettier --write .
     uv run --active ruff format .
 
-# Type-check JS (root + all workspaces) and pipeline-api Python; runs `format` first (skip with --check/-c).
+# Type-check JS (root + all workspaces) and transcription-api Python; runs `format` first (skip with --check/-c).
 [arg('fix', short='c', long='check', value='')]
 typecheck fix='--fix':
     {{ if fix == '--fix' { 'just format' } else { ':' } }}
     pnpm typecheck
-    uv run --active ty check services/pipeline-api/src
+    uv run --active ty check services/transcription-api/src
 
 # Lint JS (eslint), Python (ruff), Markdown (rumdl) — autofix by default; runs `typecheck` first. --check/-c to check only.
 [arg('fix', short='c', long='check', value='')]

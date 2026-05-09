@@ -4,8 +4,8 @@ requires-python = ">=3.14"
 
 [manifest]
 members = [
-    "pipeline-api",
     "totvibe-ocr",
+    "transcription-api",
 ]
 
 [[package]]
@@ -971,38 +971,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pipeline-api"
-version = "0.0.0"
-source = { editable = "services/pipeline-api" }
-dependencies = [
-    { name = "aioboto3" },
-    { name = "aiosqlite" },
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "pydantic" },
-    { name = "python-ulid" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.optional-dependencies]
-ocr = [
-    { name = "glmocr", extra = ["selfhosted"] },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aioboto3", specifier = ">=15.0" },
-    { name = "aiosqlite", specifier = ">=0.22" },
-    { name = "fastapi", specifier = ">=0.118" },
-    { name = "glmocr", extras = ["selfhosted"], marker = "extra == 'ocr'", specifier = ">=0.1.5" },
-    { name = "httpx", specifier = ">=0.28" },
-    { name = "pydantic", specifier = ">=2.12" },
-    { name = "python-ulid", specifier = ">=3.0" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.40" },
-]
-provides-extras = ["ocr"]
-
-[[package]]
 name = "pluggy"
 version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1623,6 +1591,38 @@ sdist = { url = "https://files.pythonhosted.org/packages/09/a9/6ba95a270c6f1fbcd
 wheels = [
     { url = "https://files.pythonhosted.org/packages/16/e1/3079a9ff9b8e11b846c6ac5c8b5bfb7ff225eee721825310c91b3b50304f/tqdm-4.67.3-py3-none-any.whl", hash = "sha256:ee1e4c0e59148062281c49d80b25b67771a127c85fc9676d3be5f243206826bf", size = 78374, upload-time = "2026-02-03T17:35:50.982Z" },
 ]
+
+[[package]]
+name = "transcription-api"
+version = "0.0.0"
+source = { editable = "services/transcription-api" }
+dependencies = [
+    { name = "aioboto3" },
+    { name = "aiosqlite" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "python-ulid" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.optional-dependencies]
+ocr = [
+    { name = "glmocr", extra = ["selfhosted"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aioboto3", specifier = ">=15.0" },
+    { name = "aiosqlite", specifier = ">=0.22" },
+    { name = "fastapi", specifier = ">=0.118" },
+    { name = "glmocr", extras = ["selfhosted"], marker = "extra == 'ocr'", specifier = ">=0.1.5" },
+    { name = "httpx", specifier = ">=0.28" },
+    { name = "pydantic", specifier = ">=2.12" },
+    { name = "python-ulid", specifier = ">=3.0" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.40" },
+]
+provides-extras = ["ocr"]
 
 [[package]]
 name = "transformers"

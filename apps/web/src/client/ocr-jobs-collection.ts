@@ -1,41 +1,47 @@
-// TanStack DB collections for ocr_jobs + per-md_page rows.
-// Hydrates via GET /api/me/items, stays live via WS /api/me/ws.
-// Exponential-backoff reconnect; refetches the snapshot after every reconnect.
-
 import { createCollection } from '@tanstack/db';
 
 import type { MdPageRow, OcrJobRow, Snapshot } from '~/durable-objects/user-do';
 
-import { WS_RECONNECT_BASE_MS, WS_RECONNECT_MAX_EXPONENT, WS_RECONNECT_MAX_MS } from '~/constants';
+const STATE_STREAM_URL = '/api/_internal/state-stream';
 
 type Delta =
   | { op: 'md-page-upsert'; row: MdPageRow }
   | { op: 'ocr-job-upsert'; row: OcrJobRow }
   | { op: 'snapshot'; snapshot: Snapshot };
 
-const mdPageId = (ocrJob: string, n: number) => `${ocrJob}#${n}`;
-
-type Writer<T extends object> = {
+type SyncApi<T extends object> = {
   begin: () => void;
   commit: () => void;
   markReady: () => void;
   write: (msg: { type: 'insert' | 'update'; value: T }) => void;
 };
 
-let ocrJobsWriter: undefined | Writer<OcrJobRow>;
-let mdPagesWriter: undefined | Writer<MdPageRow>;
-let teardown: (() => void) | undefined;
+const mdPageId = (ocrJob: string, n: number) => `${ocrJob}#${n}`;
+
+// Module-level shared transport: both collections feed off one EventSource.
+// The DO emits the snapshot as the first SSE frame, then per-row deltas; both
+// collections share the snapshot moment for hydration.
+type Subscribers = {
+  mdPages?: SyncApi<MdPageRow>;
+  ocrJobs?: SyncApi<OcrJobRow>;
+};
+const subs: Subscribers = {};
+
+let source: EventSource | undefined;
+let started = false;
 
 const applySnapshot = (snap: Snapshot) => {
-  if (ocrJobsWriter) {
-    ocrJobsWriter.begin();
-    for (const row of snap.ocr_jobs) ocrJobsWriter.write({ type: 'insert', value: row });
-    ocrJobsWriter.commit();
+  if (subs.ocrJobs) {
+    subs.ocrJobs.begin();
+    for (const row of snap.ocr_jobs) subs.ocrJobs.write({ type: 'insert', value: row });
+    subs.ocrJobs.commit();
+    subs.ocrJobs.markReady();
   }
-  if (mdPagesWriter) {
-    mdPagesWriter.begin();
-    for (const row of snap.md_pages) mdPagesWriter.write({ type: 'insert', value: row });
-    mdPagesWriter.commit();
+  if (subs.mdPages) {
+    subs.mdPages.begin();
+    for (const row of snap.md_pages) subs.mdPages.write({ type: 'insert', value: row });
+    subs.mdPages.commit();
+    subs.mdPages.markReady();
   }
 };
 
@@ -44,92 +50,44 @@ const applyDelta = (delta: Delta) => {
     applySnapshot(delta.snapshot);
     return;
   }
-  if (delta.op === 'ocr-job-upsert' && ocrJobsWriter) {
-    ocrJobsWriter.begin();
-    ocrJobsWriter.write({ type: 'update', value: delta.row });
-    ocrJobsWriter.commit();
+  if (delta.op === 'ocr-job-upsert' && subs.ocrJobs) {
+    subs.ocrJobs.begin();
+    subs.ocrJobs.write({ type: 'update', value: delta.row });
+    subs.ocrJobs.commit();
     return;
   }
-  if (delta.op === 'md-page-upsert' && mdPagesWriter) {
-    mdPagesWriter.begin();
-    mdPagesWriter.write({ type: 'update', value: delta.row });
-    mdPagesWriter.commit();
+  if (delta.op === 'md-page-upsert' && subs.mdPages) {
+    subs.mdPages.begin();
+    subs.mdPages.write({ type: 'update', value: delta.row });
+    subs.mdPages.commit();
   }
 };
 
-const fetchSnapshot = async () => {
-  const res = await fetch('/api/me/items', { credentials: 'same-origin' });
-  if (!res.ok) throw new Error(`hydrate failed: ${res.status}`);
-  const snap: Snapshot = await res.json();
-  applySnapshot(snap);
-  ocrJobsWriter?.markReady();
-  mdPagesWriter?.markReady();
-};
-
-const openLiveStream = () => {
-  let closed = false;
-  let socket: undefined | WebSocket;
-  let attempt = 0;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-
-  const connect = () => {
-    if (closed) return;
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = `${proto}//${location.host}/api/me/ws`;
-    const ws = new WebSocket(url);
-    socket = ws;
-    ws.addEventListener('open', () => {
-      attempt = 0;
-    });
-    ws.addEventListener('message', event => {
-      try {
-        applyDelta(JSON.parse(event.data as string) as Delta);
-      } catch {
-        /* ignore malformed frames */
-      }
-    });
-    ws.addEventListener('close', () => {
-      if (closed) return;
-      const backoff = Math.min(
-        WS_RECONNECT_MAX_MS,
-        WS_RECONNECT_BASE_MS * 2 ** Math.min(attempt, WS_RECONNECT_MAX_EXPONENT),
-      );
-      attempt += 1;
-      timer = setTimeout(() => {
-        void hydrateThenConnect();
-      }, backoff);
-    });
-    ws.addEventListener('error', () => {
-      try {
-        ws.close();
-      } catch {
-        /* noop */
-      }
-    });
-  };
-
-  const hydrateThenConnect = async () => {
+const startSourceIfReady = () => {
+  if (started) return;
+  if (!subs.ocrJobs || !subs.mdPages) return;
+  if (typeof EventSource === 'undefined') return;
+  started = true;
+  source = new EventSource(STATE_STREAM_URL, { withCredentials: true });
+  source.addEventListener('message', event => {
     try {
-      await fetchSnapshot();
+      // event.data is typed `any` from EventSource; we trust the worker which
+      // stringifies our Delta union before sending.
+      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+      const data = event.data as string;
+      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+      applyDelta(JSON.parse(data) as Delta);
     } catch {
-      /* hydrate failures are recoverable; reconnect loop will retry */
+      /* ignore malformed frames */
     }
-    connect();
-  };
-
-  void hydrateThenConnect();
-
-  return () => {
-    closed = true;
-    if (timer) clearTimeout(timer);
-    if (socket) socket.close();
-  };
+  });
 };
 
-const maybeStart = () => {
-  if (ocrJobsWriter && mdPagesWriter && !teardown) {
-    teardown = openLiveStream();
-  }
+const stop = () => {
+  if (!started) return;
+  started = false;
+  source?.close();
+  source = undefined;
 };
 
 export const ocrJobsCollection = createCollection<OcrJobRow, string>({
@@ -137,8 +95,13 @@ export const ocrJobsCollection = createCollection<OcrJobRow, string>({
   id: 'ocr_jobs',
   sync: {
     sync: ({ begin, commit, markReady, write }) => {
-      ocrJobsWriter = { begin, commit, markReady, write: write as Writer<OcrJobRow>['write'] };
-      maybeStart();
+      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+      subs.ocrJobs = { begin, commit, markReady, write: write as SyncApi<OcrJobRow>['write'] };
+      startSourceIfReady();
+      return () => {
+        delete subs.ocrJobs;
+        if (!subs.mdPages) stop();
+      };
     },
   },
 });
@@ -148,8 +111,13 @@ export const mdPagesCollection = createCollection<MdPageRow, string>({
   id: 'md_pages',
   sync: {
     sync: ({ begin, commit, markReady, write }) => {
-      mdPagesWriter = { begin, commit, markReady, write: write as Writer<MdPageRow>['write'] };
-      maybeStart();
+      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+      subs.mdPages = { begin, commit, markReady, write: write as SyncApi<MdPageRow>['write'] };
+      startSourceIfReady();
+      return () => {
+        delete subs.mdPages;
+        if (!subs.ocrJobs) stop();
+      };
     },
   },
 });

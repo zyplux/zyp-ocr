@@ -1,13 +1,13 @@
-// HMAC-SHA256 signing/verification for pipeline callback tokens.
-// Claims: { userId, ocrJobId, pageNumber?, callbackId, exp }
+// HMAC-SHA256 signing/verification for transcription result tokens.
+// Claims: { userId, ocrJobId, pageNumber?, resultId, exp }
 // Format: base64url(JSON(claims)) "." base64url(HMAC-SHA256(claims))
-// See plan/totvibe-ocr.md §6 ("Signed callback tokens").
+// See plan/totvibe-ocr.md §6 ("Signed result tokens").
 
-export type CallbackClaims = {
-  callbackId: string;
+export type ResultClaims = {
   exp: number;
   ocrJobId: string;
   pageNumber?: number;
+  resultId: string;
   userId: string;
 };
 
@@ -41,7 +41,7 @@ const timingSafeEqual = (a: Uint8Array, b: Uint8Array) => {
   return diff === 0;
 };
 
-export const signCallbackToken = async (claims: CallbackClaims, secret: string) => {
+export const signResultToken = async (claims: ResultClaims, secret: string) => {
   const headerBytes = encoder.encode(JSON.stringify(claims));
   const header = base64UrlEncode(headerBytes);
   const key = await importKey(secret);
@@ -49,7 +49,7 @@ export const signCallbackToken = async (claims: CallbackClaims, secret: string) 
   return `${header}.${base64UrlEncode(new Uint8Array(sigBuf))}`;
 };
 
-export const verifyCallbackToken = async (token: string, secrets: readonly string[]) => {
+export const verifyResultToken = async (token: string, secrets: readonly string[]) => {
   const dot = token.indexOf('.');
   if (dot === -1) throw new Error('malformed token');
   const header = token.slice(0, dot);
@@ -69,7 +69,12 @@ export const verifyCallbackToken = async (token: string, secrets: readonly strin
   if (!matched) throw new Error('invalid signature');
 
   const claimsJson = new TextDecoder().decode(base64UrlDecode(header));
-  const claims = JSON.parse(claimsJson) as CallbackClaims;
+  // We've already verified the HMAC over `header`, so the payload is
+  // trust-boundary-validated as having been produced by us. JSON.parse returns
+  // `unknown`; replacing this with a zod-style validator is overkill until
+  // claims grow beyond the five fixed fields we control.
+  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+  const claims = JSON.parse(claimsJson) as ResultClaims;
   if (typeof claims.exp !== 'number' || claims.exp * 1000 < Date.now()) {
     throw new Error('token expired');
   }

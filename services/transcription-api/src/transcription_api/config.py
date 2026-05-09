@@ -14,8 +14,8 @@ class Settings:
     s3_secret_access_key: str
     vllm_base: str
     vllm_model: str
-    callback_hmac_secret: str
-    pipeline_state_dir: str
+    result_hmac_secret: str
+    transcription_state_dir: str
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -28,6 +28,8 @@ class Settings:
             s3_secret_access_key=os.environ.get("S3_SECRET_ACCESS_KEY", "minioadmin"),
             vllm_base=os.environ.get("VLLM_BASE", "http://vllm:8080"),
             vllm_model=os.environ.get("VLLM_MODEL", "zai-org/GLM-OCR"),
-            callback_hmac_secret=os.environ["CALLBACK_HMAC_SECRET"],
-            pipeline_state_dir=os.environ.get("PIPELINE_STATE_DIR", "/var/lib/pipeline"),
+            result_hmac_secret=os.environ["RESULT_HMAC_SECRET"],
+            transcription_state_dir=os.environ.get(
+                "TRANSCRIPTION_STATE_DIR", "/var/lib/transcription"
+            ),
         )

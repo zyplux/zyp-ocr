@@ -1,36 +1,26 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e4e49ec8-6d95-4ca5-a3ca-4cb7d1f2ab3f",
+  "id": "9d84cc18-abd1-47b1-94cf-745d009f5beb",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
-    "callbacks_seen": {
-      "name": "callbacks_seen",
+    "md_pages": {
+      "name": "md_pages",
       "columns": {
-        "callback_id": {
-          "name": "callback_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
+        "completed_at": {
+          "name": "completed_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
-        "seen_at": {
-          "name": "seen_at",
+        "created_at": {
+          "name": "created_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "md_pages": {
-      "name": "md_pages",
-      "columns": {
+        },
         "error": {
           "name": "error",
           "type": "text",
@@ -59,11 +49,11 @@
           "notNull": true,
           "autoincrement": false
         },
-        "status": {
-          "name": "status",
-          "type": "text",
+        "started_at": {
+          "name": "started_at",
+          "type": "integer",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         }
       },
@@ -73,25 +63,27 @@
           "name": "md_pages_ocr_job_id_ocr_jobs_id_fk",
           "tableFrom": "md_pages",
           "tableTo": "ocr_jobs",
-          "columnsFrom": ["ocr_job_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "ocr_job_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "md_pages_ocr_job_id_page_number_pk": {
-          "columns": ["ocr_job_id", "page_number"],
+          "columns": [
+            "ocr_job_id",
+            "page_number"
+          ],
           "name": "md_pages_ocr_job_id_page_number_pk"
         }
       },
       "uniqueConstraints": {},
-      "checkConstraints": {
-        "md_pages_status_enum": {
-          "name": "md_pages_status_enum",
-          "value": "\"md_pages\".\"status\" IN ('transcribing','done','failed')"
-        }
-      }
+      "checkConstraints": {}
     },
     "ocr_jobs": {
       "name": "ocr_jobs",
@@ -145,13 +137,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "total_pages": {
           "name": "total_pages",
           "type": "integer",
@@ -171,20 +156,31 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {
-        "ocr_jobs_status_enum": {
-          "name": "ocr_jobs_status_enum",
-          "value": "\"ocr_jobs\".\"status\" IN ('awaiting_upload','uploaded','transcribing','done','failed')"
+      "checkConstraints": {}
+    },
+    "received_results": {
+      "name": "received_results",
+      "columns": {
+        "received_at": {
+          "name": "received_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         },
-        "ocr_jobs_size_bytes_max": {
-          "name": "ocr_jobs_size_bytes_max",
-          "value": "\"ocr_jobs\".\"size_bytes\" <= 52428800"
-        },
-        "ocr_jobs_total_pages_max": {
-          "name": "ocr_jobs_total_pages_max",
-          "value": "\"ocr_jobs\".\"total_pages\" <= 100"
+        "result_id": {
+          "name": "result_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
         }
-      }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
     }
   },
   "views": {},

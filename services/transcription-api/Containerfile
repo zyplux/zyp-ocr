@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-# Multi-stage Containerfile for pipeline-api.
+# Multi-stage Containerfile for transcription-api.
 # Stages: deps → dev (uvicorn --reload) → prod (uvicorn) → mock (--mock).
 # The `mock` stage skips OCR-heavy extras (glmocr/paddle) to keep the image small.
 
@@ -24,33 +24,33 @@ HEALTHCHECK --interval=5s --timeout=3s --start-period=15s --retries=10 \
 # ---------- deps (workspace-aware sync, no extras) ----------
 FROM base AS deps
 COPY pyproject.toml uv.lock ./
-COPY services/pipeline-api/pyproject.toml services/pipeline-api/pyproject.toml
+COPY services/transcription-api/pyproject.toml services/transcription-api/pyproject.toml
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --package pipeline-api --no-install-project
+    uv sync --frozen --package transcription-api --no-install-project
 
 # ---------- dev (with OCR extras) ----------
 FROM deps AS dev
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --package pipeline-api --extra ocr --no-install-project
-COPY services/pipeline-api/src services/pipeline-api/src
-COPY services/pipeline-api/pyproject.toml services/pipeline-api/pyproject.toml
+    uv sync --frozen --package transcription-api --extra ocr --no-install-project
+COPY services/transcription-api/src services/transcription-api/src
+COPY services/transcription-api/pyproject.toml services/transcription-api/pyproject.toml
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --package pipeline-api --extra ocr
+    uv sync --frozen --package transcription-api --extra ocr
 EXPOSE 8000
-CMD ["uv", "run", "--package", "pipeline-api", "uvicorn", \
-     "pipeline_api.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uv", "run", "--package", "transcription-api", "uvicorn", \
+     "transcription_api.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # ---------- prod ----------
 FROM dev AS prod
-CMD ["uv", "run", "--package", "pipeline-api", "uvicorn", \
-     "pipeline_api.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "--package", "transcription-api", "uvicorn", \
+     "transcription_api.app:app", "--host", "0.0.0.0", "--port", "8000"]
 
 # ---------- mock (no OCR extras; --mock flag bypasses glmocr/paddle imports) ----------
 FROM deps AS mock
-COPY services/pipeline-api/src services/pipeline-api/src
-COPY services/pipeline-api/pyproject.toml services/pipeline-api/pyproject.toml
+COPY services/transcription-api/src services/transcription-api/src
+COPY services/transcription-api/pyproject.toml services/transcription-api/pyproject.toml
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --package pipeline-api
+    uv sync --frozen --package transcription-api
 EXPOSE 8000
-CMD ["uv", "run", "--package", "pipeline-api", "python", "-m", "pipeline_api", "--mock", \
+CMD ["uv", "run", "--package", "transcription-api", "python", "-m", "transcription_api", "--mock", \
      "--host", "0.0.0.0", "--port", "8000"]

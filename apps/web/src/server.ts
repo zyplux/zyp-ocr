@@ -6,60 +6,57 @@ import { Hono } from 'hono';
 import { createFactory } from 'hono/factory';
 import { z } from 'zod';
 
-import type { ApplyCallbackInput } from '~/durable-objects/user-do';
-import type { CallbackClaims } from '~/lib/callback-token';
+import type { ApplyResultInput } from '~/durable-objects/user-do';
+import type { ResultClaims } from '~/lib/result-token';
 
 import { DEFAULT_USER_ID, MAX_PAGES } from '~/constants';
-import { PipelineCallback } from '~/contracts';
-import { verifyCallbackToken } from '~/lib/callback-token';
+import { TranscriptionResult } from '~/contracts';
 import { getMessage } from '~/lib/error';
+import { verifyResultToken } from '~/lib/result-token';
 import { blob } from '~/lib/s3';
 
 export { UserDO } from '~/durable-objects/user-do';
 
 const startHandler = createStartHandler(defaultStreamHandler);
 
-type App = { Bindings: Env; Variables: { claims: CallbackClaims } };
+type App = { Bindings: Env; Variables: { claims: ResultClaims } };
 
 const userStub = (env: Env) => env.USER_DO.get(env.USER_DO.idFromName(DEFAULT_USER_ID));
 
-const handleSnapshot = async (c: Context<App>) => {
-  const snap = await userStub(c.env).snapshot();
-  return c.json(snap);
+const handleStateStream = async (c: Context<App>) => {
+  const stub = userStub(c.env);
+  const sub = await stub.subscribe();
+  c.req.raw.signal.addEventListener('abort', () => {
+    void stub.unsubscribe(sub.id);
+  });
+  return new Response(sub.stream, {
+    headers: {
+      'cache-control': 'no-cache, no-transform',
+      'content-type': 'text/event-stream',
+      'x-accel-buffering': 'no',
+    },
+  });
 };
 
-const handleWebSocket = (c: Context<App>) => {
-  const request = c.req.raw;
-  if (request.headers.get('Upgrade') !== 'websocket') {
-    return c.text('expected websocket upgrade', 426);
-  }
-  const url = new URL(request.url);
-  url.pathname = '/ws';
-  return userStub(c.env).fetch(new Request(url, request));
-};
-
-const requireCallbackToken: MiddlewareHandler<App> = async (c, next) => {
-  const token = c.req.header('x-callback-token');
-  if (!token) return c.json({ error: 'missing x-callback-token' }, 401);
+const requireResultToken: MiddlewareHandler<App> = async (c, next) => {
+  const token = c.req.header('x-result-token');
+  if (!token) return c.json({ error: 'missing x-result-token' }, 401);
   try {
-    const claims = await verifyCallbackToken(token, [
-      c.env.CALLBACK_HMAC_SECRET,
-      c.env.CALLBACK_HMAC_SECRET_PREVIOUS ?? '',
-    ]);
+    const claims = await verifyResultToken(token, [c.env.RESULT_HMAC_SECRET, c.env.RESULT_HMAC_SECRET_PREVIOUS ?? '']);
     c.set('claims', claims);
   } catch (err) {
-    return c.json({ error: getMessage(err, 'callback token') }, 401);
+    return c.json({ error: getMessage(err, 'result token') }, 401);
   }
   await next();
 };
 
 const factory = createFactory<App>();
 
-const pipelineCallbackHandlers = factory.createHandlers(
-  requireCallbackToken,
-  zValidator('json', PipelineCallback, (result, c) => {
+const transcriptionResultHandlers = factory.createHandlers(
+  requireResultToken,
+  zValidator('json', TranscriptionResult, (result, c) => {
     if (!result.success) {
-      return c.json({ details: result.error.issues, error: 'invalid callback payload' }, 400);
+      return c.json({ details: result.error.issues, error: 'invalid result payload' }, 400);
     }
   }),
   async c => {
@@ -68,15 +65,15 @@ const pipelineCallbackHandlers = factory.createHandlers(
     if (data.ocr_job_id !== claims.ocrJobId) {
       return c.json({ error: 'token / payload ocr job mismatch' }, 403);
     }
-    const input: ApplyCallbackInput = {
-      callbackId: data.callback_id,
+    const input: ApplyResultInput = {
       ocrJobId: data.ocr_job_id,
+      resultId: data.result_id,
       status: data.status,
-      ...(data.page_number != undefined && { pageNumber: data.page_number }),
+      ...(data.page_number !== null && data.page_number !== undefined && { pageNumber: data.page_number }),
       ...(data.markdown_key && { markdownKey: data.markdown_key }),
       ...(data.error && { error: data.error }),
     };
-    await userStub(c.env).applyCallback(input);
+    await userStub(c.env).applyResult(input);
     return c.json({ ok: true });
   },
 );
@@ -101,9 +98,8 @@ const blobRoute = <S extends z.ZodType>(
   );
 
 const api = new Hono<App>()
-  .get('/api/me/items', handleSnapshot)
-  .all('/api/me/ws', handleWebSocket)
-  .post('/api/pipeline/callback', ...pipelineCallbackHandlers)
+  .get('/api/_internal/state-stream', handleStateStream)
+  .post('/api/transcription/results', ...transcriptionResultHandlers)
   .get('/api/ocr-jobs/:ocrJobId/upload', ...blobRoute(OcrJobParams, p => blob.upload(p.ocrJobId)))
   .get('/api/ocr-jobs/:ocrJobId/md-pages/:page', ...blobRoute(MdPageParams, p => blob.mdPage(p.ocrJobId, p.page)))
   .all('/api/*', c => c.json({ error: 'not found' }, 404))

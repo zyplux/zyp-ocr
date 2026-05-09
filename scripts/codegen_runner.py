@@ -17,6 +17,7 @@ Subcommands:
                stage what they change
     watch      run every *.watchregen.py with --watch, in parallel
 """
+
 from __future__ import annotations
 
 import argparse
@@ -71,9 +72,7 @@ def git_status_pairs() -> dict[str, str]:
 
 
 def stage_diff(before: dict[str, str], after: dict[str, str]) -> list[str]:
-    changed = sorted(
-        p for p in before.keys() | after.keys() if before.get(p) != after.get(p)
-    )
+    changed = sorted(p for p in before.keys() | after.keys() if before.get(p) != after.get(p))
     for path in changed:
         subprocess.run(
             ["git", "add", "--all", "--", path],
@@ -141,7 +140,7 @@ async def run_watch_all(scripts: list[Path]) -> int:
     tasks = [asyncio.create_task(run_one_watch(s)) for s in scripts]
     try:
         done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-    except (asyncio.CancelledError, KeyboardInterrupt):
+    except asyncio.CancelledError, KeyboardInterrupt:
         for t in tasks:
             t.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)

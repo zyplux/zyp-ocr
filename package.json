@@ -19,6 +19,7 @@
     "@totvibe/eslint-plugin": "workspace:*",
     "@types/node": "catalog:",
     "eslint": "catalog:",
+    "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-perfectionist": "^5.9.0",
     "eslint-plugin-prefer-arrow-functions": "^3.9.1",
     "eslint-plugin-react": "catalog:",

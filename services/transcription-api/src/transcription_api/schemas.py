@@ -1,4 +1,4 @@
-"""Cross-language contract: source of truth for callback + submission shapes.
+"""Cross-language contract: source of truth for transcription submission + result shapes.
 
 Generated TS Zod schemas live at apps/web/src/contracts.ts (run `just codegen`).
 
@@ -11,19 +11,19 @@ from typing import Literal
 from pydantic import BaseModel
 
 
-class PipelineSubmission(BaseModel):
+class TranscriptionSubmission(BaseModel):
     ocr_job_id: str
     upload_key: str
-    callback_url: str
-    callback_token: str
+    result_url: str
+    result_token: str
 
 
-class PipelineSubmissionAck(BaseModel):
+class TranscriptionSubmissionAck(BaseModel):
     pipeline_id: str
 
 
-class PipelineCallback(BaseModel):
-    callback_id: str
+class TranscriptionResult(BaseModel):
+    result_id: str
     ocr_job_id: str
     page_number: int | None = None
     status: Literal["done", "failed"]

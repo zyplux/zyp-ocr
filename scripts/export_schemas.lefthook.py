@@ -4,7 +4,7 @@
 #   "pydantic>=2.12.0",
 # ]
 # ///
-"""Generate apps/web/src/contracts.ts from services/pipeline-api/src/pipeline_api/schemas.py.
+"""Generate apps/web/src/contracts.ts from transcription_api.schemas.
 
 Pydantic v2 → JSON Schema (via model_json_schema) → naive Zod TS emitter.
 The output file is committed; the pre-commit hook re-runs this script via
@@ -12,7 +12,7 @@ The output file is committed; the pre-commit hook re-runs this script via
 
 This is a host-run helper — it does NOT depend on workspace state at runtime
 (uv ignores pyproject.toml when invoked via `uv run scripts/...`). It dynamically
-loads schemas.py by path so we don't need `pipeline-api` installed.
+loads schemas.py by path so we don't need `transcription-api` installed.
 """
 
 from __future__ import annotations
@@ -89,19 +89,19 @@ def js_key(name: str) -> str:
 
 
 ROOT = Path(__file__).resolve().parent.parent
-SCHEMAS_PY = ROOT / "services/pipeline-api/src/pipeline_api/schemas.py"
+SCHEMAS_PY = ROOT / "services/transcription-api/src/transcription_api/schemas.py"
 OUTPUT_TS = ROOT / "apps/web/src/contracts.ts"
 
 # Order matters: emit referenced models before the ones that reference them.
 EXPORTED = [
-    "PipelineSubmission",
-    "PipelineSubmissionAck",
-    "PipelineCallback",
+    "TranscriptionSubmission",
+    "TranscriptionSubmissionAck",
+    "TranscriptionResult",
 ]
 
 
 def load_schemas_module():
-    spec = importlib.util.spec_from_file_location("pipeline_schemas", SCHEMAS_PY)
+    spec = importlib.util.spec_from_file_location("transcription_schemas", SCHEMAS_PY)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"failed to load {SCHEMAS_PY}")
     module = importlib.util.module_from_spec(spec)
@@ -160,7 +160,7 @@ def main() -> int:
     module = load_schemas_module()
     header = (
         "// GENERATED FILE — do not edit by hand.\n"
-        "// Source of truth: services/pipeline-api/src/pipeline_api/schemas.py\n"
+        "// Source of truth: services/transcription-api/src/transcription_api/schemas.py\n"
         "// Run `just codegen` to regenerate.\n\n"
         "import { z } from 'zod';\n\n"
     )

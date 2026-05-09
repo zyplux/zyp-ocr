@@ -15,17 +15,68 @@ ruleTester.run('no-inferrable-return-type', noInferrableReturnType, {
     {
       code: 'const greet = (): string => "hi";',
       errors: [{ messageId: 'removeReturnType' }],
+      name: 'arrow function with annotation',
       output: 'const greet = () => "hi";',
     },
     {
       code: 'async function fetchAll(): Promise<void> {}',
       errors: [{ messageId: 'removeReturnType' }],
+      name: 'async function declaration',
       output: 'async function fetchAll() {}',
     },
     {
       code: 'class A { m(): void {} }',
       errors: [{ messageId: 'removeReturnType' }],
+      name: 'class method',
       output: 'class A { m() {} }',
+    },
+    {
+      code: 'const obj = { greet(): string { return "hi"; } };',
+      errors: [{ messageId: 'removeReturnType' }],
+      name: 'object-literal method shorthand',
+      output: 'const obj = { greet() { return "hi"; } };',
+    },
+    {
+      code: 'const obj = { greet: (): string => "hi" };',
+      errors: [{ messageId: 'removeReturnType' }],
+      name: 'object-literal arrow property',
+      output: 'const obj = { greet: () => "hi" };',
+    },
+    {
+      code: 'function* gen(): Generator<number> { yield 1; }',
+      errors: [{ messageId: 'removeReturnType' }],
+      name: 'generator function — rule strips annotation; tightening would require adding generator handling',
+      output: 'function* gen() { yield 1; }',
+    },
+    {
+      code: 'const greet = function(): string { return "hi"; };',
+      errors: [{ messageId: 'removeReturnType' }],
+      name: 'function expression assigned to a variable',
+      output: 'const greet = function() { return "hi"; };',
+    },
+    {
+      code: 'function compute(): number { const x = 1; return x; }',
+      errors: [{ messageId: 'removeReturnType' }],
+      name: 'named function declaration with non-trivial body',
+      output: 'function compute() { const x = 1; return x; }',
+    },
+    {
+      code: 'const f = (x: number = 0): number => x;',
+      errors: [{ messageId: 'removeReturnType' }],
+      name: 'default parameter value influencing inference',
+      output: 'const f = (x: number = 0) => x;',
+    },
+    {
+      code: 'class A { get x(): number { return 1; } }',
+      errors: [{ messageId: 'removeReturnType' }],
+      name: 'class getter accessor',
+      output: 'class A { get x() { return 1; } }',
+    },
+    {
+      code: 'const f = (): readonly [number, string] => [1, "a"] as const;',
+      errors: [{ messageId: 'removeReturnType' }],
+      name: 'tuple return — `as const` literal already pins the type',
+      output: 'const f = () => [1, "a"] as const;',
     },
   ],
   valid: [
@@ -45,6 +96,18 @@ ruleTester.run('no-inferrable-return-type', noInferrableReturnType, {
         'const out = r.error ? r.message : `got ${r.value}`;',
       ].join('\n'),
       name: 'generic erosion — `error: false` widens to boolean, breaking r.error narrowing at call sites',
+    },
+    {
+      code: 'interface I { greet(): string; }',
+      name: 'interface method signature is ambient — rule must not visit it',
+    },
+    {
+      code: 'class A { constructor(public n: number) {} }',
+      name: 'constructors have no syntactic return type so the rule cannot fire',
+    },
+    {
+      code: 'declare class C { m(): number; }',
+      name: 'class method declarations in ambient classes — no body to infer from',
     },
   ],
 });

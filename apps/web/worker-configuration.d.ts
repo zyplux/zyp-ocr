@@ -15,9 +15,9 @@ declare global {
       S3_BUCKET: string;
       S3_ACCESS_KEY_ID: string;
       S3_SECRET_ACCESS_KEY: string;
-      PIPELINE_BASE: string;
-      CALLBACK_HMAC_SECRET: string;
-      CALLBACK_HMAC_SECRET_PREVIOUS?: string;
+      TRANSCRIPTION_BASE: string;
+      RESULT_HMAC_SECRET: string;
+      RESULT_HMAC_SECRET_PREVIOUS?: string;
       RECONCILE_TIMEOUT_SECONDS: string;
     }
   }

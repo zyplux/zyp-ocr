@@ -28,6 +28,7 @@ Run modes:
     uv run plan/board/refresh.py             # one-shot regenerate
     uv run plan/board/refresh.py --watch     # regenerate on every .md change
 """
+
 from __future__ import annotations
 
 import argparse
@@ -48,9 +49,7 @@ COLUMNS: list[tuple[str, str]] = [
 ]
 COLUMN_NAMES = {col for col, _ in COLUMNS}
 COLUMNS_WITHOUT_META = {"done"}
-TICKET_BASE_URL = (
-    "https://github.com/realSergiy/totvibe-ocr/blob/main/plan/board/#TICKET#"
-)
+TICKET_BASE_URL = "https://github.com/realSergiy/totvibe-ocr/blob/main/plan/board/#TICKET#"
 VALID_PRIORITIES = {"Very High", "High", "Low", "Very Low"}
 PREFIX_RE = re.compile(r"^(\d+)[-_]")
 PREFIX_WIDTH = 3

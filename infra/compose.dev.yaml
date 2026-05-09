@@ -12,19 +12,19 @@ services:
     command: ["pnpm", "wrangler", "dev", "--ip", "0.0.0.0", "--port", "8787"]
     tty: true
 
-  pipeline-api:
+  transcription-api:
     build:
       target: dev
     volumes:
-      - ../services/pipeline-api/src:/app/services/pipeline-api/src:Z
-      - pipeline-state:/var/lib/pipeline
+      - ../services/transcription-api/src:/app/services/transcription-api/src:Z
+      - transcription-state:/var/lib/transcription
     command:
       - "uv"
       - "run"
       - "--package"
-      - "pipeline-api"
+      - "transcription-api"
       - "uvicorn"
-      - "pipeline_api.app:app"
+      - "transcription_api.app:app"
       - "--host"
       - "0.0.0.0"
       - "--port"

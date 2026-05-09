@@ -11,7 +11,3 @@ export const DEFAULT_USER_ID = 'default';
 export const PDF_CONTENT_TYPE = 'application/pdf';
 export const MARKDOWN_CONTENT_TYPE = 'text/markdown; charset=utf-8';
 export const BLOB_CACHE_CONTROL = 'private, max-age=60';
-
-export const WS_RECONNECT_BASE_MS = 500;
-export const WS_RECONNECT_MAX_MS = 30_000;
-export const WS_RECONNECT_MAX_EXPONENT = 6;
