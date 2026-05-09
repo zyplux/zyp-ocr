@@ -4,7 +4,7 @@
 ---
 config:
   kanban:
-    ticketBaseUrl: '#TICKET#'
+    ticketBaseUrl: 'https://github.com/realSergiy/totvibe-ocr/blob/main/plan/board/#TICKET#'
 ---
 kanban
   🌱 Todo
