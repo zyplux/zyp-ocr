@@ -81,7 +81,7 @@ const MdPageBlock = ({ mdPage, ocrJobId }: { mdPage: MdPageRow; ocrJobId: string
         Page {mdPage.page_number} — <em>{mdPage.status}</em>
       </h2>
       {mdPage.status === 'failed' && <p style={{ color: 'crimson' }}>{mdPage.error ?? 'failed'}</p>}
-      {mdPage.status === 'pending' && <p>processing…</p>}
+      {mdPage.status === 'transcribing' && <p>transcribing…</p>}
       {mdPage.status === 'done' && markdown !== undefined && <Markdown source={markdown} />}
       {mdPage.status === 'done' && markdown === undefined && <p>fetching markdown…</p>}
     </section>

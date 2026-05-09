@@ -4,23 +4,15 @@ import { zValidator } from '@hono/zod-validator';
 import { createStartHandler, defaultStreamHandler } from '@tanstack/react-start/server';
 import { Hono } from 'hono';
 import { createFactory } from 'hono/factory';
-import { ulid } from 'ulid';
 import { z } from 'zod';
 
 import type { ApplyCallbackInput } from '~/durable-objects/user-do';
 import type { CallbackClaims } from '~/lib/callback-token';
 
-import {
-  DEFAULT_USER_ID,
-  MAX_PAGES,
-  MAX_PDF_BYTES,
-  MAX_PDF_MB,
-  PDF_CONTENT_TYPE,
-} from '~/constants';
+import { DEFAULT_USER_ID, MAX_PAGES } from '~/constants';
 import { PipelineCallback } from '~/contracts';
 import { verifyCallbackToken } from '~/lib/callback-token';
 import { getMessage } from '~/lib/error';
-import { estimatePageCount } from '~/lib/pdf-pages';
 import { blob } from '~/lib/s3';
 
 export { UserDO } from '~/durable-objects/user-do';
@@ -30,41 +22,6 @@ const startHandler = createStartHandler(defaultStreamHandler);
 type App = { Bindings: Env; Variables: { claims: CallbackClaims } };
 
 const userStub = (env: Env) => env.USER_DO.get(env.USER_DO.idFromName(DEFAULT_USER_ID));
-
-const handleCreateOcrJob = async (c: Context<App>) => {
-  const request = c.req.raw;
-  const contentType = request.headers.get('content-type') ?? '';
-  if (!contentType.includes(PDF_CONTENT_TYPE)) {
-    return c.json({ error: `expected ${PDF_CONTENT_TYPE}` }, 415);
-  }
-  const lengthHeader = request.headers.get('content-length');
-  const declaredLength = lengthHeader ? Number.parseInt(lengthHeader, 10) : Number.NaN;
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_PDF_BYTES) {
-    return c.json({ error: `file too large (max ${MAX_PDF_MB} MB)` }, 413);
-  }
-
-  const body = await request.arrayBuffer();
-  if (body.byteLength > MAX_PDF_BYTES) {
-    return c.json({ error: `file too large (max ${MAX_PDF_MB} MB)` }, 413);
-  }
-
-  const bytes = new Uint8Array(body);
-  const totalPages = estimatePageCount(bytes);
-  if (totalPages > MAX_PAGES) {
-    return c.json({ error: `too many pages (max ${MAX_PAGES})` }, 413);
-  }
-
-  const ocrJobId = ulid();
-  await blob.put(c.env, blob.upload(ocrJobId), bytes);
-
-  const result = await userStub(c.env).createOcrJob({
-    ocrJobId,
-    sizeBytes: bytes.byteLength,
-    totalPages,
-    uploadKeyTemplate: 'ocr-jobs/{ocrJobId}/upload.pdf',
-  });
-  return c.json({ ocrJobId: result.ocrJobId });
-};
 
 const handleSnapshot = async (c: Context<App>) => {
   const snap = await userStub(c.env).snapshot();
@@ -144,15 +101,11 @@ const blobRoute = <S extends z.ZodType>(
   );
 
 const api = new Hono<App>()
-  .post('/api/ocr-jobs', handleCreateOcrJob)
   .get('/api/me/items', handleSnapshot)
   .all('/api/me/ws', handleWebSocket)
   .post('/api/pipeline/callback', ...pipelineCallbackHandlers)
   .get('/api/ocr-jobs/:ocrJobId/upload', ...blobRoute(OcrJobParams, p => blob.upload(p.ocrJobId)))
-  .get(
-    '/api/ocr-jobs/:ocrJobId/md-pages/:page',
-    ...blobRoute(MdPageParams, p => blob.mdPage(p.ocrJobId, p.page)),
-  )
+  .get('/api/ocr-jobs/:ocrJobId/md-pages/:page', ...blobRoute(MdPageParams, p => blob.mdPage(p.ocrJobId, p.page)))
   .all('/api/*', c => c.json({ error: 'not found' }, 404))
   .all('*', c => startHandler(c.req.raw));
 

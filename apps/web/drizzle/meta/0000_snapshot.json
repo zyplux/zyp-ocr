@@ -73,22 +73,15 @@
           "name": "md_pages_ocr_job_id_ocr_jobs_id_fk",
           "tableFrom": "md_pages",
           "tableTo": "ocr_jobs",
-          "columnsFrom": [
-            "ocr_job_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["ocr_job_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "md_pages_ocr_job_id_page_number_pk": {
-          "columns": [
-            "ocr_job_id",
-            "page_number"
-          ],
+          "columns": ["ocr_job_id", "page_number"],
           "name": "md_pages_ocr_job_id_page_number_pk"
         }
       },
@@ -96,7 +89,7 @@
       "checkConstraints": {
         "md_pages_status_enum": {
           "name": "md_pages_status_enum",
-          "value": "\"md_pages\".\"status\" IN ('pending','done','failed')"
+          "value": "\"md_pages\".\"status\" IN ('transcribing','done','failed')"
         }
       }
     },
@@ -181,7 +174,7 @@
       "checkConstraints": {
         "ocr_jobs_status_enum": {
           "name": "ocr_jobs_status_enum",
-          "value": "\"ocr_jobs\".\"status\" IN ('pending','processing','done','failed')"
+          "value": "\"ocr_jobs\".\"status\" IN ('awaiting_upload','uploaded','transcribing','done','failed')"
         },
         "ocr_jobs_size_bytes_max": {
           "name": "ocr_jobs_size_bytes_max",

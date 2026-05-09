@@ -1,50 +1,68 @@
-import { GetObjectCommand, NoSuchKey, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { AwsClient } from 'aws4fetch';
 
 import { BLOB_CACHE_CONTROL, MARKDOWN_CONTENT_TYPE, PDF_CONTENT_TYPE } from '~/constants';
 
 type Blob = { contentType: string; key: string };
 
-const makeS3Client = (env: Env) =>
-  new S3Client({
-    credentials: {
-      accessKeyId: env.S3_ACCESS_KEY_ID,
-      secretAccessKey: env.S3_SECRET_ACCESS_KEY,
-    },
-    endpoint: env.S3_ENDPOINT,
-    forcePathStyle: true,
+const client = (env: Env) =>
+  new AwsClient({
+    accessKeyId: env.S3_ACCESS_KEY_ID,
     region: env.S3_REGION,
+    secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+    service: 's3',
   });
 
+const objectUrl = (endpoint: string, env: Env, key: string) => `${endpoint}/${env.S3_BUCKET}/${key}`;
+
 const fetchBlob = async (env: Env, b: Blob) => {
-  const s3 = makeS3Client(env);
-  try {
-    const obj = await s3.send(new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: b.key }));
-    const body = obj.Body as ReadableStream | undefined;
-    if (!body) return new Response('not found', { status: 404 });
-    return new Response(body, {
-      headers: { 'cache-control': BLOB_CACHE_CONTROL, 'content-type': b.contentType },
-      status: 200,
-    });
-  } catch (err) {
-    if (err instanceof NoSuchKey) return new Response('not found', { status: 404 });
-    throw err;
-  }
+  const res = await client(env).fetch(objectUrl(env.S3_ENDPOINT, env, b.key));
+  if (res.status === 404) return new Response('not found', { status: 404 });
+  if (!res.ok) throw new Error(`GET ${b.key}: ${res.status}`);
+  return new Response(res.body, {
+    headers: { 'cache-control': BLOB_CACHE_CONTROL, 'content-type': b.contentType },
+    status: 200,
+  });
 };
 
-const putBlob = async (env: Env, b: Blob, body: Uint8Array) => {
-  const s3 = makeS3Client(env);
-  await s3.send(
-    new PutObjectCommand({ Body: body, Bucket: env.S3_BUCKET, ContentType: b.contentType, Key: b.key }),
-  );
+const fetchHead = async (env: Env, key: string, lastByte: number) => {
+  const res = await client(env).fetch(objectUrl(env.S3_ENDPOINT, env, key), {
+    headers: { range: `bytes=0-${lastByte}` },
+  });
+  if (res.status !== 200 && res.status !== 206) throw new Error(`GET ${key}: ${res.status}`);
+  return new Uint8Array(await res.arrayBuffer());
+};
+
+const headBlob = async (env: Env, key: string) => {
+  const res = await client(env).fetch(objectUrl(env.S3_ENDPOINT, env, key), { method: 'HEAD' });
+  if (res.status === 404) return;
+  if (!res.ok) throw new Error(`HEAD ${key}: ${res.status}`);
+  return { sizeBytes: Number.parseInt(res.headers.get('content-length') ?? '0', 10) };
+};
+
+const deleteBlob = async (env: Env, key: string) => {
+  const res = await client(env).fetch(objectUrl(env.S3_ENDPOINT, env, key), { method: 'DELETE' });
+  if (!res.ok && res.status !== 404) throw new Error(`DELETE ${key}: ${res.status}`);
+};
+
+const signPutUrl = async (env: Env, key: string, ttlSeconds: number) => {
+  const url = new URL(objectUrl(env.S3_PUBLIC_ENDPOINT, env, key));
+  url.searchParams.set('X-Amz-Expires', String(ttlSeconds));
+  const signed = await client(env).sign(new Request(url, { method: 'PUT' }), {
+    aws: { signQuery: true },
+  });
+  return signed.url;
 };
 
 export const blob = {
+  delete: deleteBlob,
   fetch: fetchBlob,
+  fetchHead,
+  head: headBlob,
   mdPage: (ocrJobId: string, page: number) => ({
     contentType: MARKDOWN_CONTENT_TYPE,
     key: `ocr-jobs/${ocrJobId}/md-pages/${page}.md`,
   }),
-  put: putBlob,
+  signPutUrl,
   upload: (ocrJobId: string) => ({
     contentType: PDF_CONTENT_TYPE,
     key: `ocr-jobs/${ocrJobId}/upload.pdf`,

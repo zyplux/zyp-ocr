@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 
 import { ocrJobsCollection } from '~/client/ocr-jobs-collection';
 import { getMessage } from '~/lib/error';
+import { confirmUpload, reserveUpload } from '~/server-fns/uploads';
 
 const HomePage = () => {
   const router = useRouter();
@@ -16,17 +17,10 @@ const HomePage = () => {
       setBusy(true);
       setError('');
       try {
-        const res = await fetch('/api/ocr-jobs', {
-          body: file,
-          headers: { 'content-type': 'application/pdf' },
-          method: 'POST',
-        });
-        if (!res.ok) {
-          const raw: unknown = await res.json().catch(() => ({}));
-          const body = (raw ?? {}) as { error?: string };
-          throw new Error(body.error ?? `upload failed (${res.status})`);
-        }
-        const { ocrJobId }: { ocrJobId: string } = await res.json();
+        const { ocrJobId, uploadUrl } = await reserveUpload({ data: { sizeBytes: file.size } });
+        const put = await fetch(uploadUrl, { body: file, method: 'PUT' });
+        if (!put.ok) throw new Error(`upload failed (${put.status})`);
+        await confirmUpload({ data: { ocrJobId } });
         await router.navigate({ params: { ocrJobId }, to: '/ocr-jobs/$ocrJobId' });
       } catch (err) {
         setError(getMessage(err, 'upload'));

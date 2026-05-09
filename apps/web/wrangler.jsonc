@@ -25,6 +25,7 @@
     "PUBLIC_BASE": "http://localhost:8787",
     "WORKER_INTERNAL_BASE": "http://web:8787",
     "S3_ENDPOINT": "http://minio:9000",
+    "S3_PUBLIC_ENDPOINT": "http://localhost:9000",
     "S3_REGION": "auto",
     "S3_BUCKET": "totvibe",
     "PIPELINE_BASE": "http://pipeline-api:8000",

@@ -14,13 +14,12 @@
     "wrangler:types": "wrangler types"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "catalog:",
-    "@aws-sdk/s3-request-presigner": "catalog:",
     "@hono/zod-validator": "catalog:",
     "@tanstack/db": "catalog:",
     "@tanstack/react-db": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
+    "aws4fetch": "catalog:",
     "drizzle-orm": "catalog:",
     "hono": "catalog:",
     "jotai": "catalog:",

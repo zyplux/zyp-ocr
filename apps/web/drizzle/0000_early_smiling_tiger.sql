@@ -11,7 +11,7 @@ CREATE TABLE `md_pages` (
 	`status` text NOT NULL,
 	PRIMARY KEY(`ocr_job_id`, `page_number`),
 	FOREIGN KEY (`ocr_job_id`) REFERENCES `ocr_jobs`(`id`) ON UPDATE no action ON DELETE no action,
-	CONSTRAINT "md_pages_status_enum" CHECK("md_pages"."status" IN ('pending','done','failed'))
+	CONSTRAINT "md_pages_status_enum" CHECK("md_pages"."status" IN ('transcribing','done','failed'))
 );
 --> statement-breakpoint
 CREATE TABLE `ocr_jobs` (
@@ -25,7 +25,7 @@ CREATE TABLE `ocr_jobs` (
 	`status` text NOT NULL,
 	`total_pages` integer NOT NULL,
 	`upload_key` text NOT NULL,
-	CONSTRAINT "ocr_jobs_status_enum" CHECK("ocr_jobs"."status" IN ('pending','processing','done','failed')),
+	CONSTRAINT "ocr_jobs_status_enum" CHECK("ocr_jobs"."status" IN ('awaiting_upload','uploaded','transcribing','done','failed')),
 	CONSTRAINT "ocr_jobs_size_bytes_max" CHECK("ocr_jobs"."size_bytes" <= 52428800),
 	CONSTRAINT "ocr_jobs_total_pages_max" CHECK("ocr_jobs"."total_pages" <= 100)
 );

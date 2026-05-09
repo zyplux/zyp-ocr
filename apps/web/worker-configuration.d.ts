@@ -4,20 +4,24 @@
 import type { UserDO } from './src/durable-objects/user-do';
 
 declare global {
-  interface Env {
-    USER_DO: DurableObjectNamespace<UserDO>;
-    PUBLIC_BASE: string;
-    WORKER_INTERNAL_BASE?: string;
-    S3_ENDPOINT: string;
-    S3_REGION: string;
-    S3_BUCKET: string;
-    S3_ACCESS_KEY_ID: string;
-    S3_SECRET_ACCESS_KEY: string;
-    PIPELINE_BASE: string;
-    CALLBACK_HMAC_SECRET: string;
-    CALLBACK_HMAC_SECRET_PREVIOUS?: string;
-    RECONCILE_TIMEOUT_SECONDS: string;
+  namespace Cloudflare {
+    interface Env {
+      USER_DO: DurableObjectNamespace<UserDO>;
+      PUBLIC_BASE: string;
+      WORKER_INTERNAL_BASE?: string;
+      S3_ENDPOINT: string;
+      S3_PUBLIC_ENDPOINT: string;
+      S3_REGION: string;
+      S3_BUCKET: string;
+      S3_ACCESS_KEY_ID: string;
+      S3_SECRET_ACCESS_KEY: string;
+      PIPELINE_BASE: string;
+      CALLBACK_HMAC_SECRET: string;
+      CALLBACK_HMAC_SECRET_PREVIOUS?: string;
+      RECONCILE_TIMEOUT_SECONDS: string;
+    }
   }
+  interface Env extends Cloudflare.Env {}
 }
 
 export {};

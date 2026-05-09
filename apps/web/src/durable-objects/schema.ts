@@ -11,12 +11,15 @@ export const ocr_jobs = sqliteTable(
     pipeline_id: text(),
     size_bytes: integer().notNull(),
     started_at: integer(),
-    status: text({ enum: ['pending', 'processing', 'done', 'failed'] }).notNull(),
+    status: text({ enum: ['awaiting_upload', 'uploaded', 'transcribing', 'done', 'failed'] }).notNull(),
     total_pages: integer().notNull(),
     upload_key: text().notNull(),
   },
   table => [
-    check('ocr_jobs_status_enum', sql`${table.status} IN ('pending','processing','done','failed')`),
+    check(
+      'ocr_jobs_status_enum',
+      sql`${table.status} IN ('awaiting_upload','uploaded','transcribing','done','failed')`,
+    ),
     check('ocr_jobs_size_bytes_max', sql`${table.size_bytes} <= 52428800`),
     check('ocr_jobs_total_pages_max', sql`${table.total_pages} <= 100`),
   ],
@@ -31,11 +34,11 @@ export const md_pages = sqliteTable(
       .notNull()
       .references(() => ocr_jobs.id),
     page_number: integer().notNull(),
-    status: text({ enum: ['pending', 'done', 'failed'] }).notNull(),
+    status: text({ enum: ['transcribing', 'done', 'failed'] }).notNull(),
   },
   table => [
     primaryKey({ columns: [table.ocr_job_id, table.page_number] }),
-    check('md_pages_status_enum', sql`${table.status} IN ('pending','done','failed')`),
+    check('md_pages_status_enum', sql`${table.status} IN ('transcribing','done','failed')`),
   ],
 );
 
