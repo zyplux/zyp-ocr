@@ -4,7 +4,7 @@ Scanned PDFs in, markdown out, page-by-page over WebSocket. See [`plan/totvibe-o
 
 ## Prerequisites
 
-- Node 22 (`.nvmrc`)
+- Node 24 (`.nvmrc`)
 - pnpm 10.26.1 (via corepack: `corepack enable && corepack prepare pnpm@10.26.1 --activate`)
 - Python 3.14 (`.python-version`)
 - uv 0.11+
@@ -34,7 +34,6 @@ just dev         # full stack including vLLM (GPU required)
 just down        # stop the stack
 just test        # vitest + pytest
 just lint        # ruff + eslint
-just codegen     # regenerate apps/web/src/contracts.ts from Pydantic schemas
 ```
 
 ## First-run notes
@@ -44,3 +43,9 @@ just codegen     # regenerate apps/web/src/contracts.ts from Pydantic schemas
   `createFileRoute(...)` calls — they go away after the first dev run.
 - Run `pnpm --filter @totvibe/web wrangler:types` after editing `wrangler.jsonc`
   to refresh `worker-configuration.d.ts`.
+- `just install` also installs all git hooks (lefthook).
+- Drop a PEP 723 script anywhere in the repo with one of two suffixes and it's
+  picked up automatically — no config edit needed:
+  - `*.lefthook.py` — runs once on pre-commit.
+  - `*.watchregen.py` — runs once on pre-commit AND continuously in the IDE
+    (VS Code auto-starts the watcher when the workspace opens).

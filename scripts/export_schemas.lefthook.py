@@ -7,7 +7,8 @@
 """Generate apps/web/src/contracts.ts from services/pipeline-api/src/pipeline_api/schemas.py.
 
 Pydantic v2 → JSON Schema (via model_json_schema) → naive Zod TS emitter.
-The output file is committed; rerun on schema changes via `just codegen`.
+The output file is committed; the pre-commit hook re-runs this script via
+`scripts/codegen_runner.py` (picked up by the `*.lefthook.py` convention).
 
 This is a host-run helper — it does NOT depend on workspace state at runtime
 (uv ignores pyproject.toml when invoked via `uv run scripts/...`). It dynamically

@@ -14,10 +14,11 @@ mock_stack := compose + " -f infra/compose.mock.yaml"
 default:
     @just --list
 
-# Install JS and Python dependencies (images are built lazily by `just up`).
+# Install JS and Python dependencies + git hooks (images are built lazily by `just up`).
 install:
     pnpm install
     uv sync --all-packages
+    uv run lefthook install
 
 # Build images, start the stack detached, and wait until all services are healthy. mode: dev (default) | mock.
 up mode="dev":
@@ -45,16 +46,12 @@ clean:
     find . -type d -name .pytest_cache -prune -exec rm -rf {} +
     find . -type d -name .ruff_cache -prune -exec rm -rf {} +
 
-# Export shared schemas (e.g. JSON Schema, OpenAPI) for cross-language use.
-codegen:
-    uv run scripts/export_schemas.py
-
-# Auto-format JS/MD via prettier and Python via ruff. Runs `codegen` first.
-format: codegen
+# Auto-format JS/MD via prettier and Python via ruff.
+format:
     pnpm exec prettier --write .
     uv run --active ruff format .
 
-# Type-check JS (root + all workspaces) and pipeline-api Python; runs `format`+`codegen` first (skip with --check/-c).
+# Type-check JS (root + all workspaces) and pipeline-api Python; runs `format` first (skip with --check/-c).
 [arg('fix', short='c', long='check', value='')]
 typecheck fix='--fix':
     {{ if fix == '--fix' { 'just format' } else { ':' } }}
@@ -68,13 +65,13 @@ lint fix='--fix': (typecheck fix)
     uv run --active ruff check {{ fix }} .
     rumdl check {{ fix }} .
 
-# Run all JS (workspace) and Python (pytest) unit tests; runs `lint` first. --check/-c to skip format/codegen and lint fixes.
+# Run all JS (workspace) and Python (pytest) unit tests; runs `lint` first. --check/-c to skip format and lint fixes.
 [arg('fix', short='c', long='check', value='')]
 test fix='--fix': (lint fix)
     pnpm -r test
     uv run --active pytest
 
-# Run end-to-end Python tests (gated by TOTVIBE_E2E); runs `test` first. --check/-c to skip format/codegen and lint fixes.
+# Run end-to-end Python tests (gated by TOTVIBE_E2E); runs `test` first. --check/-c to skip format and lint fixes.
 [arg('fix', short='c', long='check', value='')]
 e2e fix='--fix': (test fix)
     TOTVIBE_E2E=1 uv run --active pytest -k e2e
