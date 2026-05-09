@@ -63,22 +63,15 @@
           "name": "md_pages_ocr_job_id_ocr_jobs_id_fk",
           "tableFrom": "md_pages",
           "tableTo": "ocr_jobs",
-          "columnsFrom": [
-            "ocr_job_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["ocr_job_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "md_pages_ocr_job_id_page_number_pk": {
-          "columns": [
-            "ocr_job_id",
-            "page_number"
-          ],
+          "columns": ["ocr_job_id", "page_number"],
           "name": "md_pages_ocr_job_id_page_number_pk"
         }
       },

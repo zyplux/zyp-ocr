@@ -14,7 +14,8 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
-    "@typescript-eslint/utils": "catalog:"
+    "@typescript-eslint/utils": "catalog:",
+    "eslint-plugin-prefer-arrow-functions": "^3.9.1"
   },
   "peerDependencies": {
     "eslint": "catalog:",

@@ -69,11 +69,6 @@ export const verifyResultToken = async (token: string, secrets: readonly string[
   if (!matched) throw new Error('invalid signature');
 
   const claimsJson = new TextDecoder().decode(base64UrlDecode(header));
-  // We've already verified the HMAC over `header`, so the payload is
-  // trust-boundary-validated as having been produced by us. JSON.parse returns
-  // `unknown`; replacing this with a zod-style validator is overkill until
-  // claims grow beyond the five fixed fields we control.
-  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
   const claims = JSON.parse(claimsJson) as ResultClaims;
   if (typeof claims.exp !== 'number' || claims.exp * 1000 < Date.now()) {
     throw new Error('token expired');

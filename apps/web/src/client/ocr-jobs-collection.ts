@@ -71,11 +71,7 @@ const startSourceIfReady = () => {
   source = new EventSource(STATE_STREAM_URL, { withCredentials: true });
   source.addEventListener('message', event => {
     try {
-      // event.data is typed `any` from EventSource; we trust the worker which
-      // stringifies our Delta union before sending.
-      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
       const data = event.data as string;
-      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
       applyDelta(JSON.parse(data) as Delta);
     } catch {
       /* ignore malformed frames */
@@ -95,7 +91,6 @@ export const ocrJobsCollection = createCollection<OcrJobRow, string>({
   id: 'ocr_jobs',
   sync: {
     sync: ({ begin, commit, markReady, write }) => {
-      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
       subs.ocrJobs = { begin, commit, markReady, write: write as SyncApi<OcrJobRow>['write'] };
       startSourceIfReady();
       return () => {
@@ -111,7 +106,6 @@ export const mdPagesCollection = createCollection<MdPageRow, string>({
   id: 'md_pages',
   sync: {
     sync: ({ begin, commit, markReady, write }) => {
-      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
       subs.mdPages = { begin, commit, markReady, write: write as SyncApi<MdPageRow>['write'] };
       startSourceIfReady();
       return () => {

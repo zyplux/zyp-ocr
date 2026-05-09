@@ -53,10 +53,6 @@ const stripNulls = <T extends Record<string, unknown>>(row: T): T => {
   for (const [k, v] of Object.entries(row)) {
     if (v !== null) out[k] = v;
   }
-  // The output is structurally a subset of T (missing only the null-valued
-  // properties). T's shape isn't preserved through a Record builder, so the
-  // assertion is the only way to express "same shape minus nulls".
-  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
   return out as T;
 };
 

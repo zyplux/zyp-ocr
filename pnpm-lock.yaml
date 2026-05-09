@@ -146,9 +146,6 @@ importers:
       eslint-plugin-perfectionist:
         specifier: ^5.9.0
         version: 5.9.0(eslint@10.3.0(jiti@2.7.0))(typescript@6.0.3)
-      eslint-plugin-prefer-arrow-functions:
-        specifier: ^3.9.1
-        version: 3.9.1(eslint@10.3.0(jiti@2.7.0))(typescript@6.0.3)
       eslint-plugin-react:
         specifier: 'catalog:'
         version: 7.37.5(eslint@10.3.0(jiti@2.7.0))
@@ -273,6 +270,9 @@ importers:
       eslint:
         specifier: 'catalog:'
         version: 10.3.0(jiti@2.7.0)
+      eslint-plugin-prefer-arrow-functions:
+        specifier: ^3.9.1
+        version: 3.9.1(eslint@10.3.0(jiti@2.7.0))(typescript@6.0.3)
     devDependencies:
       '@types/node':
         specifier: 'catalog:'

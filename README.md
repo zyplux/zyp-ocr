@@ -1,6 +1,6 @@
 # totvibe-ocr
 
-Scanned PDFs in, markdown out, page-by-page via a TanStack DB live collection backed by an SSE state stream. See [`plan/totvibe-ocr.md`](./plan/totvibe-ocr.md) for the architecture and [`plan/project-structure.md`](./plan/done/001-proj-struct.md) for the repo layout.
+Scanned PDFs in, markdown out, page-by-page via a TanStack DB live collection backed by an SSE state stream. See [`plan/totvibe-ocr.md`](./plan/totvibe-ocr.md) for the architecture and [`plan/project-structure.md`](./plan/board/done/001-proj-struct.md) for the repo layout.
 
 ## Prerequisites
 

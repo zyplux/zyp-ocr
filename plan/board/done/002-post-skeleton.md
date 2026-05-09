@@ -3,7 +3,7 @@
 > **Status:** v0.1 walking skeleton wired and exercised end-to-end against the mock pipeline.
 > **Last updated:** 2026-05-08
 
-This file enumerates everything still open after the walking skeleton landed. It is the working list — items move into `plan/doing/` when picked up and `plan/done/NNN-<slug>.md` when shipped. The strategic roadmap stays in [`../totvibe-ocr.md`](../totvibe-ocr.md) §11; this doc just makes the next-layer-down concrete.
+This file enumerates everything still open after the walking skeleton landed. It is the working list — items move into `plan/doing/` when picked up and `plan/done/NNN-<slug>.md` when shipped. The strategic roadmap stays in [`totvibe-ocr.md`](../../totvibe-ocr.md) §11; this doc just makes the next-layer-down concrete.
 
 ## What the skeleton actually shipped
 

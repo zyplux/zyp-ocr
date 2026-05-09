@@ -31,17 +31,10 @@ const traverse = (node: TSESTree.Node, visit: (n: TSESTree.Node) => boolean): bo
   if (visit(node)) return true;
   for (const key of Object.keys(node)) {
     if (key === 'parent' || key === 'loc' || key === 'range') continue;
-    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
     const value = (node as unknown as Record<string, unknown>)[key];
     if (Array.isArray(value)) {
       for (const item of value) {
-        if (
-          item !== null &&
-          typeof item === 'object' &&
-          'type' in item &&
-          // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-          traverse(item as TSESTree.Node, visit)
-        ) {
+        if (item !== null && typeof item === 'object' && 'type' in item && traverse(item as TSESTree.Node, visit)) {
           return true;
         }
       }
@@ -49,7 +42,6 @@ const traverse = (node: TSESTree.Node, visit: (n: TSESTree.Node) => boolean): bo
       value !== null &&
       typeof value === 'object' &&
       'type' in value &&
-      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
       traverse(value as TSESTree.Node, visit)
     ) {
       return true;

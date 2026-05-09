@@ -41,7 +41,7 @@ Rationale per reviewer: arbitrary-sized documents are an explicit goal; only tok
 
 Per main plan §7 #4, the pipeline POSTs once per page completion (and once per ocr-job-final state) to the public Worker route `/api/pipeline/callback` with payload:
 
-```
+```text
 { callback_id, ocr_job_id, page_number, status, markdown_key?, error? }
 ```
 

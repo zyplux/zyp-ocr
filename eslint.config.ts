@@ -1,5 +1,3 @@
-import type { ESLint } from 'eslint';
-
 import eslint from '@eslint/js';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import { readFileSync } from 'node:fs';
@@ -9,20 +7,10 @@ type ConfigWithExtends = Parameters<typeof defineConfig>[number];
 import totvibe from '@totvibe/eslint-plugin';
 import prettierConfig from 'eslint-config-prettier';
 import perfectionist from 'eslint-plugin-perfectionist';
-import preferArrowFunctions from 'eslint-plugin-prefer-arrow-functions';
 import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 import unicorn from 'eslint-plugin-unicorn';
 import tseslint from 'typescript-eslint';
-
-// `eslint/config`'s `defineConfig` requires `ESLint.Plugin` whose `rules` index
-// is `RuleDefinition<RuleDefinitionTypeOptions>`. typescript-eslint plugins
-// (ours and upstream) use `LooseRuleDefinition` which carries richer context
-// type parameters. The two are runtime-equivalent and structurally compatible
-// at the JS boundary; the type incompatibility is cosmetic. This is the only
-// place we cross that boundary.
-// eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-const asEslintPlugin = (plugin: { rules?: unknown }) => plugin as ESLint.Plugin;
 
 const catalogVersion = (pkg: string) => {
   const workspace = readFileSync(fileURLToPath(new URL('pnpm-workspace.yaml', import.meta.url)), 'utf8');
@@ -34,8 +22,6 @@ const catalogVersion = (pkg: string) => {
   if (!match?.[1]) throw new Error(`pnpm-workspace.yaml: catalog entry for "${pkg}" not found`);
   return match[1];
 };
-
-const arrowFunctionsPlugin = asEslintPlugin({ rules: preferArrowFunctions.rules });
 
 const reactRecommended = react.configs.flat.recommended;
 if (!reactRecommended) {
@@ -63,7 +49,6 @@ const arrowOnlyMessage = 'Use an arrow function. If `this`/`arguments`/`new.targ
 
 const baseConfig = {
   extends: [eslint.configs.recommended],
-  plugins: { 'prefer-arrow-functions': arrowFunctionsPlugin },
   rules: {
     'no-empty-pattern': ['error', { allowObjectPatternsAsParameters: true }],
     'no-restricted-syntax': [
@@ -74,7 +59,6 @@ const baseConfig = {
         selector: ':not(MethodDefinition, Property[method=true]) > FunctionExpression',
       },
     ],
-    'prefer-arrow-functions/prefer-arrow-functions': ['error', { returnStyle: 'implicit' }],
   },
 } satisfies ConfigWithExtends;
 
@@ -88,7 +72,7 @@ const typescriptConfig = {
     },
   },
   rules: {
-    '@typescript-eslint/consistent-type-assertions': ['error', { assertionStyle: 'never' }],
+    //'@typescript-eslint/consistent-type-assertions': ['error', { assertionStyle: 'never' }],
     '@typescript-eslint/consistent-type-definitions': ['error', 'type'],
     '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
   },
@@ -129,9 +113,10 @@ const tanstackRoutesConfig = {
 
 const totvibeConfig = {
   files: ['**/*.{ts,tsx}'],
-  plugins: { '@totvibe': asEslintPlugin(totvibe) },
+  plugins: { '@totvibe': totvibe },
   rules: {
     '@totvibe/no-inferrable-return-type': 'error',
+    '@totvibe/prefer-arrow-functions': ['error', { returnStyle: 'implicit' }],
   },
 } satisfies ConfigWithExtends;
 

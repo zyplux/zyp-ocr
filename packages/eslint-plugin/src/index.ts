@@ -1,14 +1,13 @@
-import type { TSESLint } from '@typescript-eslint/utils';
+import type { ESLint } from 'eslint';
 
-import { rules as importedRules } from './rules/index';
+import { rules } from './rules/index';
 
 const plugin = {
   meta: {
     name: '@totvibe/eslint-plugin',
     version: '0.0.0',
   },
-  rules: importedRules,
-} satisfies TSESLint.FlatConfig.Plugin;
+  rules,
+} satisfies ESLint.Plugin;
 
-export { rules } from './rules/index';
 export default plugin;
