@@ -1,4 +1,4 @@
-# Totvibe-OCR — Project Structure Plan
+# Project Structure Plan
 
 > **Status:** v0.1 scaffolded — readiness 100%
 > **Last updated:** 2026-05-06

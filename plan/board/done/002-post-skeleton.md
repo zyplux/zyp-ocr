@@ -1,4 +1,4 @@
-# Post-skeleton TODO
+# Post-skeleton
 
 > **Status:** v0.1 walking skeleton wired and exercised end-to-end against the mock pipeline.
 > **Last updated:** 2026-05-08

@@ -1,4 +1,4 @@
-# 004 — Address PR #3 review comments
+# Address PR #3 review comments
 
 Six review comments on [PR #3 (`feat: walking skeleton`)](https://github.com/realSergiy/totvibe-ocr/pull/3) need follow-up. Each one is tracked below with the context it touches, the proposed change, and the open questions to resolve before coding.
 

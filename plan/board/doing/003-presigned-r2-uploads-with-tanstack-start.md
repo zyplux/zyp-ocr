@@ -1,4 +1,4 @@
-# 003 — Presigned uploads to R2/MinIO
+# Presigned uploads to R2/MinIO
 
 Move raw PDF upload off the worker request path. Browser PUTs directly to object storage using a short-lived presigned URL; the worker only signs, validates, and records.
 
