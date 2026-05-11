@@ -1,6 +1,6 @@
 import preferArrowFunctions from 'eslint-plugin-prefer-arrow-functions';
 
-import { widenLooseRuleToEslintRule, widenTsRuleToEslintRule } from '../eslint-rule';
+import { castLooseToEslintRule, castTsToEslintRule } from '../cast-to-eslint-rule';
 import { noInferrableReturnType } from './no-inferrable-return-type';
 
 const upstreamPreferArrowFunctions = preferArrowFunctions.rules?.['prefer-arrow-functions'];
@@ -9,6 +9,6 @@ if (!upstreamPreferArrowFunctions) {
 }
 
 export const rules = {
-  'no-inferrable-return-type': widenTsRuleToEslintRule(noInferrableReturnType),
-  'prefer-arrow-functions': widenLooseRuleToEslintRule(upstreamPreferArrowFunctions),
+  'no-inferrable-return-type': castTsToEslintRule(noInferrableReturnType),
+  'prefer-arrow-functions': castLooseToEslintRule(upstreamPreferArrowFunctions),
 };

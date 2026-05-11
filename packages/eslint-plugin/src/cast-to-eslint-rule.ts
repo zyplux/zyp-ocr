@@ -15,9 +15,9 @@ const narrowToEslintRule = (rule: object) => {
   return widened;
 };
 
-export const widenTsRuleToEslintRule = (r: TSEslintRule) => narrowToEslintRule({ ...r, create: r.create.bind(r) });
+export const castTsToEslintRule = (r: TSEslintRule) => narrowToEslintRule({ ...r, create: r.create.bind(r) });
 
-export const widenLooseRuleToEslintRule = (r: LooseRuleDefinition) => {
+export const castLooseToEslintRule = (r: LooseRuleDefinition) => {
   const looseRule = typeof r === 'function' ? { create: r } : r;
   return narrowToEslintRule({
     create: looseRule.create.bind(looseRule),
