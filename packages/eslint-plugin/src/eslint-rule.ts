@@ -4,24 +4,23 @@ import type { ESLint } from 'eslint';
 
 export type EslintRule = NonNullable<ESLint.Plugin['rules']>[string];
 
-type TSEslintRule = ReturnType<TSEslintRuleCreator>;
-type TSEslintRuleCreator = ReturnType<typeof ESLintUtils.RuleCreator>;
+type TSEslintRule = ReturnType<ReturnType<typeof ESLintUtils.RuleCreator>>;
 
-export const widenTsRuleToEslintRule = (r: TSEslintRule) => {
-  const { defaultOptions, ...meta } = r.meta;
-  const create = r.create.bind(r) as unknown as EslintRule['create'];
-  return {
-    ...r,
-    create,
-    meta: defaultOptions ? { ...meta, defaultOptions: [...defaultOptions] } : meta,
-  } satisfies EslintRule;
+const isEslintRule = (value: unknown): value is EslintRule =>
+  value !== null && typeof value === 'object' && 'create' in value && typeof value.create === 'function';
+
+const narrowToEslintRule = (rule: object) => {
+  const widened: unknown = rule;
+  if (!isEslintRule(widened)) throw new Error('Rule does not match EslintRule shape');
+  return widened;
 };
 
+export const widenTsRuleToEslintRule = (r: TSEslintRule) => narrowToEslintRule({ ...r, create: r.create.bind(r) });
+
 export const widenLooseRuleToEslintRule = (r: LooseRuleDefinition) => {
-  const looseRule = typeof r === 'function' ? { create: r, meta: undefined } : r;
-  const create = looseRule.create.bind(looseRule) as unknown as EslintRule['create'];
-  return {
-    create,
+  const looseRule = typeof r === 'function' ? { create: r } : r;
+  return narrowToEslintRule({
+    create: looseRule.create.bind(looseRule),
     ...(looseRule.meta && { meta: looseRule.meta }),
-  } satisfies EslintRule;
+  });
 };
