@@ -1,24 +1,19 @@
-import type { AnyRuleModule, LooseRuleDefinition } from '@typescript-eslint/utils/ts-eslint';
+import type { LooseRuleDefinition } from '@typescript-eslint/utils/ts-eslint';
 import type { ESLint } from 'eslint';
 
 export type EslintRule = NonNullable<ESLint.Plugin['rules']>[string];
 
-type RuleSource = { create: (...args: never[]) => unknown; meta?: object | undefined };
+const hasCallableCreate = (value: object): value is EslintRule =>
+  'create' in value && typeof value.create === 'function';
 
-const isEslintRule = (value: unknown): value is EslintRule =>
-  value !== null &&
-  typeof value === 'object' &&
-  'create' in value &&
-  typeof value.create === 'function';
-
-export const castToEslintRule = (rule: AnyRuleModule | LooseRuleDefinition) => {
-  const source: RuleSource = typeof rule === 'function' ? { create: rule } : rule;
-  const result: { create: typeof source.create; meta?: object } = {
+export const castToEslintRule = (rule: LooseRuleDefinition) => {
+  const source = typeof rule === 'function' ? { create: rule } : rule;
+  const normalized = {
     create: source.create.bind(source),
+    ...(source.meta !== undefined && { meta: source.meta }),
   };
-  if (source.meta !== undefined) result.meta = source.meta;
-  if (!isEslintRule(result)) {
-    throw new TypeError('Expected an ESLint rule with a `create` method');
+  if (!hasCallableCreate(normalized)) {
+    throw new TypeError('castToEslintRule: rule is missing a callable `create` method');
   }
-  return result;
+  return normalized;
 };
