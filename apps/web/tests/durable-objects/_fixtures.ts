@@ -43,14 +43,11 @@ export const it = base.extend<UserStoreFixtures>({
     );
   },
   ocrJob: async ({ db }, use) => {
-    await use((id = 'j1') =>
-      requireRow(db.select().from(schema.ocr_jobs).where(eq(schema.ocr_jobs.id, id)).get()),
-    );
+    await use((id = 'j1') => requireRow(db.select().from(schema.ocr_jobs).where(eq(schema.ocr_jobs.id, id)).get()));
   },
   seedReserved: async ({ db }, use) => {
     await use((id = 'j1', size = 100, key = 'uploads/j1', at = CREATED_AT) => {
-      db
-        .insert(schema.ocr_jobs)
+      db.insert(schema.ocr_jobs)
         .values({ created_at: at, id, size_bytes: size, total_pages: 0, upload_key: key })
         .run();
     });

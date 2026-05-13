@@ -186,10 +186,7 @@ describe('UserStore.applyResult (page)', () => {
 
   it('a failed page rejects a subsequent success replay', async ({ mdPage, seedTranscribing, store }) => {
     await seedTranscribing();
-    store.applyResult(
-      { error: 'boom', ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'failed' },
-      COMPLETE_AT,
-    );
+    store.applyResult({ error: 'boom', ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'failed' }, COMPLETE_AT);
     const replay = store.applyResult(
       { markdownKey: 'md/j1/p1.md', ocrJobId: 'j1', pageNumber: 1, resultId: 'r2', status: 'done' },
       COMPLETE_AT + 100,
