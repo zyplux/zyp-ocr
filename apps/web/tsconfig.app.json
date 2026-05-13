@@ -17,10 +17,10 @@
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "resolveJsonModule": true,
-    "types": ["vite/client", "vitest/globals", "@cloudflare/workers-types"],
+    "types": ["vite/client", "vitest/globals", "@cloudflare/workers-types", "node"],
     "paths": {
       "~/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*", "worker-configuration.d.ts"]
+  "include": ["src/**/*", "tests/**/*", "worker-configuration.d.ts"]
 }
