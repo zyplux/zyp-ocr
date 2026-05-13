@@ -62,9 +62,7 @@ export class UserDO extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.db = drizzle(ctx.storage, { logger: false, schema });
-    void ctx.blockConcurrencyWhile(async () => {
-      await migrate(this.db, migrations);
-    });
+    migrate(this.db, migrations);
   }
 
   override async alarm() {
@@ -116,14 +114,14 @@ export class UserDO extends DurableObject<Env> {
   // for atomicity-on-error; concurrency is not a concern.
   async applyResult(input: ApplyResultInput) {
     const now = Date.now();
-    const applied = await this.db.transaction(async tx => {
-      await tx
-        .insert(schema.received_results)
+    const applied = this.db.transaction(tx => {
+      tx.insert(schema.received_results)
         .values({ received_at: now, result_id: input.resultId })
-        .onConflictDoNothing();
+        .onConflictDoNothing()
+        .run();
 
       if (typeof input.pageNumber === 'number') {
-        const updated = await tx
+        const updated = tx
           .update(schema.md_pages)
           .set({
             completed_at: now,
@@ -138,12 +136,13 @@ export class UserDO extends DurableObject<Env> {
               isNull(schema.md_pages.error),
             ),
           )
-          .returning({ pn: schema.md_pages.page_number });
+          .returning({ pn: schema.md_pages.page_number })
+          .all();
         return updated.length > 0;
       }
 
       const finalError = input.status === 'failed' ? (input.error ?? 'failed') : sql`NULL`;
-      const updated = await tx
+      const updated = tx
         .update(schema.ocr_jobs)
         .set({ completed_at: now, error: finalError })
         .where(
@@ -153,7 +152,8 @@ export class UserDO extends DurableObject<Env> {
             isNull(schema.ocr_jobs.error),
           ),
         )
-        .returning({ id: schema.ocr_jobs.id });
+        .returning({ id: schema.ocr_jobs.id })
+        .all();
       return updated.length > 0;
     });
 

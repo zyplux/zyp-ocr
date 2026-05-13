@@ -5,6 +5,7 @@ alias l := lint
 alias tc := typecheck
 alias t := test
 alias i := install
+alias u := upgrade
 
 compose := "podman compose -f infra/compose.yaml"
 dev_stack := compose + " -f infra/compose.dev.yaml"
@@ -19,6 +20,11 @@ install:
     pnpm install
     uv sync --all-packages
     uv run lefthook install
+
+# Upgrade JS dependencies across the workspace. Pass -i/--interactive for the picker UI.
+[arg('interactive', short='i', long='interactive', value='i')]
+upgrade interactive='':
+    pnpm up -r{{ interactive }}
 
 # Build images, start the stack detached, and wait until all services are healthy. mode: dev (default) | mock.
 up mode="dev":
