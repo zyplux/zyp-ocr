@@ -23,26 +23,26 @@ const getFunctionName = (node: FunctionWithReturnType) => {
   return;
 };
 
-const isAstNode = (x: unknown): x is TSESTree.Node =>
-  x !== null && typeof x === 'object' && 'type' in x && typeof x.type === 'string';
-
-const traverse = (node: TSESTree.Node, visit: (n: TSESTree.Node) => boolean): boolean => {
+const traverse = (node: object, visit: (n: object) => boolean): boolean => {
   if (visit(node)) return true;
-  for (const [key, value] of Object.entries(node)) {
+  const entries: ReadonlyMap<string, unknown> = new Map(Object.entries(node));
+  for (const [key, value] of entries) {
     if (key === 'parent' || key === 'loc' || key === 'range') continue;
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        if (isAstNode(item) && traverse(item, visit)) return true;
-      }
-    } else if (isAstNode(value) && traverse(value, visit)) {
-      return true;
+    const items: readonly unknown[] = Array.isArray(value) ? value : [value];
+    for (const item of items) {
+      if (item === null || typeof item !== 'object') continue;
+      if (traverse(item, visit)) return true;
     }
   }
   return false;
 };
 
 const bodyReferencesIdentifier = (body: TSESTree.Node, name: string) =>
-  traverse(body, n => n.type === AST_NODE_TYPES.Identifier && n.name === name);
+  traverse(body, n => {
+    if (!('type' in n) || n.type !== AST_NODE_TYPES.Identifier) return false;
+    if (!('name' in n) || typeof n.name !== 'string') return false;
+    return n.name === name;
+  });
 
 const collectTypeParamNames = (node: FunctionWithReturnType) => {
   const names = new Set<string>();
@@ -57,8 +57,10 @@ const collectTypeParamNames = (node: FunctionWithReturnType) => {
 const returnTypeReferencesAny = (typeNode: TSESTree.Node, names: Set<string>) => {
   if (names.size === 0) return false;
   return traverse(typeNode, n => {
-    if (n.type !== AST_NODE_TYPES.TSTypeReference) return false;
-    if (n.typeName.type !== AST_NODE_TYPES.Identifier) return false;
+    if (!('type' in n) || n.type !== AST_NODE_TYPES.TSTypeReference) return false;
+    if (!('typeName' in n) || n.typeName === null || typeof n.typeName !== 'object') return false;
+    if (!('type' in n.typeName) || n.typeName.type !== AST_NODE_TYPES.Identifier) return false;
+    if (!('name' in n.typeName) || typeof n.typeName.name !== 'string') return false;
     return names.has(n.typeName.name);
   });
 };

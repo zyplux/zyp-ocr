@@ -1,20 +1,10 @@
 import { createCollection } from '@tanstack/db';
 
-import type { MdPageRow, OcrJobRow, Snapshot } from '~/durable-objects/user-do';
+import type { Delta, MdPageRow, OcrJobRow, Snapshot } from '~/durable-objects/wire';
+
+import { Delta as DeltaSchema } from '~/durable-objects/wire';
 
 const STATE_STREAM_URL = '/api/_internal/state-stream';
-
-type Delta =
-  | { op: 'md-page-upsert'; row: MdPageRow }
-  | { op: 'ocr-job-upsert'; row: OcrJobRow }
-  | { op: 'snapshot'; snapshot: Snapshot };
-
-const isDelta = (x: unknown): x is Delta => {
-  if (x === null || typeof x !== 'object' || !('op' in x)) return false;
-  if (x.op === 'snapshot') return 'snapshot' in x;
-  if (x.op === 'ocr-job-upsert' || x.op === 'md-page-upsert') return 'row' in x;
-  return false;
-};
 
 type SyncApi<T extends object> = {
   begin: () => void;
@@ -81,8 +71,9 @@ const startSourceIfReady = () => {
       const raw: unknown = event.data;
       if (typeof raw !== 'string') return;
       const parsed: unknown = JSON.parse(raw);
-      if (!isDelta(parsed)) return;
-      applyDelta(parsed);
+      const result = DeltaSchema.safeParse(parsed);
+      if (!result.success) return;
+      applyDelta(result.data);
     } catch {
       /* ignore malformed frames */
     }

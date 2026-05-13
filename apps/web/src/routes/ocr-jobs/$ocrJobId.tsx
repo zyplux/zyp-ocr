@@ -2,7 +2,7 @@ import { useLiveQuery } from '@tanstack/react-db';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
-import type { MdPageRow } from '~/durable-objects/user-do';
+import type { MdPageRow } from '~/durable-objects/wire';
 
 import { Markdown } from '~/client/markdown';
 import { mdPagesCollection, ocrJobsCollection } from '~/client/ocr-jobs-collection';

@@ -116,6 +116,8 @@ const totvibeConfig = {
   plugins: { '@totvibe': totvibe },
   rules: {
     '@totvibe/no-inferrable-return-type': 'error',
+    '@totvibe/no-type-predicate': 'error',
+    '@totvibe/no-zod-custom': 'error',
     '@totvibe/prefer-arrow-functions': ['error', { returnStyle: 'implicit' }],
   },
 } satisfies ConfigWithExtends;

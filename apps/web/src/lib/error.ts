@@ -1,8 +1,7 @@
-const isErrorWithMessage = (error: unknown): error is { message: string } =>
-  typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string';
-
 const rawMessage = (error: unknown) => {
-  if (isErrorWithMessage(error)) return error.message;
+  if (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string') {
+    return error.message;
+  }
   try {
     return JSON.stringify(error);
   } catch {

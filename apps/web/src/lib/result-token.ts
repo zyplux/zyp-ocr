@@ -3,23 +3,16 @@
 // Format: base64url(JSON(claims)) "." base64url(HMAC-SHA256(claims))
 // See plan/totvibe-ocr.md §6 ("Signed result tokens").
 
-export type ResultClaims = {
-  exp: number;
-  ocrJobId: string;
-  pageNumber?: number;
-  resultId: string;
-  userId: string;
-};
+import { z } from 'zod';
 
-const isResultClaims = (x: unknown): x is ResultClaims => {
-  if (x === null || typeof x !== 'object') return false;
-  if (!('exp' in x) || typeof x.exp !== 'number') return false;
-  if (!('ocrJobId' in x) || typeof x.ocrJobId !== 'string') return false;
-  if (!('resultId' in x) || typeof x.resultId !== 'string') return false;
-  if (!('userId' in x) || typeof x.userId !== 'string') return false;
-  if ('pageNumber' in x && x.pageNumber !== undefined && typeof x.pageNumber !== 'number') return false;
-  return true;
-};
+export const ResultClaims = z.object({
+  exp: z.number(),
+  ocrJobId: z.string(),
+  pageNumber: z.number().optional(),
+  resultId: z.string(),
+  userId: z.string(),
+});
+export type ResultClaims = z.infer<typeof ResultClaims>;
 
 const encoder = new TextEncoder();
 
@@ -79,8 +72,10 @@ export const verifyResultToken = async (token: string, secrets: readonly string[
   if (!matched) throw new Error('invalid signature');
 
   const claimsJson = new TextDecoder().decode(base64UrlDecode(header));
-  const claims: unknown = JSON.parse(claimsJson);
-  if (!isResultClaims(claims)) throw new Error('malformed token');
+  const parsed: unknown = JSON.parse(claimsJson);
+  const result = ResultClaims.safeParse(parsed);
+  if (!result.success) throw new Error('malformed token');
+  const claims = result.data;
   if (claims.exp * 1000 < Date.now()) throw new Error('token expired');
   return claims;
 };

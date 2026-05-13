@@ -4,6 +4,8 @@ import { drizzle, type DrizzleSqliteDODatabase } from 'drizzle-orm/durable-sqlit
 import { migrate } from 'drizzle-orm/durable-sqlite/migrator';
 import { ulid } from 'ulid';
 
+import type { Delta, Snapshot } from '~/durable-objects/wire';
+
 import { DEFAULT_RECONCILE_TIMEOUT_SECONDS, DEFAULT_USER_ID, MAX_INFLIGHT_JOBS, TOKEN_TTL_SECONDS } from '~/constants';
 import migrations from '~/durable-objects/migrations';
 import * as schema from '~/durable-objects/schema';
@@ -26,27 +28,13 @@ export type ConfirmUploadInput = {
   totalPages: number;
 };
 
-export type MdPageRow = schema.MdPageDbRow & { status: schema.MdPageStatus };
-
-export type OcrJobRow = schema.OcrJobDbRow & { status: schema.OcrJobStatus };
-
 export type ReserveUploadInput = {
   ocrJobId: string;
   sizeBytes: number;
   uploadKey: string;
 };
 
-export type Snapshot = {
-  md_pages: MdPageRow[];
-  ocr_jobs: OcrJobRow[];
-};
-
 export type SubscribeResult = { id: string; stream: ReadableStream<Uint8Array> };
-
-type Delta =
-  | { op: 'md-page-upsert'; row: MdPageRow }
-  | { op: 'ocr-job-upsert'; row: OcrJobRow }
-  | { op: 'snapshot'; snapshot: Snapshot };
 
 const withOcrJobStatus = (row: schema.OcrJobDbRow) => ({
   ...row,
