@@ -48,8 +48,3 @@ CREATE TABLE `ocr_jobs` (
 	CONSTRAINT "ocr_jobs_started_requires_pages" CHECK("started_at" IS NULL OR "total_pages" > 0),
 	CONSTRAINT "ocr_jobs_error_nonempty" CHECK("error" IS NULL OR length("error") > 0)
 );
---> statement-breakpoint
-CREATE TABLE `received_results` (
-	`received_at` integer NOT NULL,
-	`result_id` text PRIMARY KEY
-);

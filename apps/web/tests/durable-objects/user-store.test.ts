@@ -1,60 +1,11 @@
-import { eq } from 'drizzle-orm';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect } from 'vitest';
 
 import * as schema from '~/durable-objects/schema';
-import { UserStore } from '~/durable-objects/user-store';
 
-import { createTestDb, type TestDb } from './_db';
-
-const CREATED_AT = 1000;
-const UPLOAD_AT = 1100;
-const START_AT = 1200;
-const COMPLETE_AT = 1500;
-
-let db: TestDb;
-let store: UserStore;
-
-beforeEach(() => {
-  db = createTestDb();
-  store = new UserStore(db);
-});
-
-const requireRow = <T>(row: T | undefined): T => {
-  if (row === undefined) throw new Error('expected a row');
-  return row;
-};
-
-const seedReserved = (id = 'j1', size = 100, key = 'uploads/j1', at = CREATED_AT) => {
-  db.insert(schema.ocr_jobs).values({ created_at: at, id, size_bytes: size, total_pages: 0, upload_key: key }).run();
-};
-
-const seedTranscribing = async (id = 'j1', pages = 1) => {
-  seedReserved(id);
-  await store.confirmUpload({ ocrJobId: id, sizeBytes: 100, totalPages: pages }, UPLOAD_AT);
-  await store.setPipelineId(id, `pipe-${id}`, START_AT);
-};
-
-const ocrJob = (id = 'j1') => requireRow(db.select().from(schema.ocr_jobs).where(eq(schema.ocr_jobs.id, id)).get());
-
-const mdPage = (id: string, pn: number) =>
-  requireRow(
-    db
-      .select()
-      .from(schema.md_pages)
-      .where(eq(schema.md_pages.ocr_job_id, id))
-      .all()
-      .find(p => p.page_number === pn),
-  );
-
-const receivedResultIds = () =>
-  db
-    .select({ id: schema.received_results.result_id })
-    .from(schema.received_results)
-    .all()
-    .map(r => r.id);
+import { COMPLETE_AT, CREATED_AT, it, START_AT, UPLOAD_AT } from './_fixtures';
 
 describe('UserStore.reserveJob', () => {
-  it('inserts a fresh job in awaiting_upload', async () => {
+  it('inserts a fresh job in awaiting_upload', async ({ ocrJob, store }) => {
     await store.reserveJob({ ocrJobId: 'j1', sizeBytes: 12_345, uploadKey: 'u/j1' }, CREATED_AT);
     expect(ocrJob('j1')).toMatchObject({
       created_at: CREATED_AT,
@@ -66,7 +17,7 @@ describe('UserStore.reserveJob', () => {
     });
   });
 
-  it('rejects duplicate ids', async () => {
+  it('rejects duplicate ids', async ({ store }) => {
     await store.reserveJob({ ocrJobId: 'j1', sizeBytes: 0, uploadKey: 'u' }, CREATED_AT);
     await expect(store.reserveJob({ ocrJobId: 'j1', sizeBytes: 0, uploadKey: 'u' }, CREATED_AT)).rejects.toThrow(
       /UNIQUE|PRIMARY KEY/,
@@ -75,7 +26,12 @@ describe('UserStore.reserveJob', () => {
 });
 
 describe('UserStore.confirmUpload', () => {
-  it('records size + page count and seeds md_pages with sequential numbers', async () => {
+  it('records size + page count and seeds md_pages with sequential numbers', async ({
+    db,
+    ocrJob,
+    seedReserved,
+    store,
+  }) => {
     seedReserved();
     await store.confirmUpload({ ocrJobId: 'j1', sizeBytes: 999, totalPages: 3 }, UPLOAD_AT);
 
@@ -89,7 +45,7 @@ describe('UserStore.confirmUpload', () => {
     expect(pageNumbers).toEqual([1, 2, 3]);
   });
 
-  it('skips page seeding when totalPages is 0', async () => {
+  it('skips page seeding when totalPages is 0', async ({ db, seedReserved, store }) => {
     seedReserved();
     await store.confirmUpload({ ocrJobId: 'j1', sizeBytes: 0, totalPages: 0 }, UPLOAD_AT);
     expect(db.select().from(schema.md_pages).all()).toEqual([]);
@@ -97,7 +53,11 @@ describe('UserStore.confirmUpload', () => {
 });
 
 describe('UserStore.setPipelineId', () => {
-  it('writes pipeline_id and started_at atomically, advancing job to transcribing', async () => {
+  it('writes pipeline_id and started_at atomically, advancing job to transcribing', async ({
+    ocrJob,
+    seedReserved,
+    store,
+  }) => {
     seedReserved();
     await store.confirmUpload({ ocrJobId: 'j1', sizeBytes: 100, totalPages: 1 }, UPLOAD_AT);
     await store.setPipelineId('j1', 'pipe-1', START_AT);
@@ -107,13 +67,13 @@ describe('UserStore.setPipelineId', () => {
 });
 
 describe('UserStore.failJob', () => {
-  it('marks the job failed with the given error', async () => {
+  it('marks the job failed with the given error', async ({ ocrJob, seedReserved, store }) => {
     seedReserved();
     await store.failJob('j1', 'boom', COMPLETE_AT);
     expect(ocrJob()).toMatchObject({ completed_at: COMPLETE_AT, error: 'boom', status: 'failed' });
   });
 
-  it('overwrites prior terminal state unconditionally', async () => {
+  it('overwrites prior terminal state unconditionally', async ({ ocrJob, seedReserved, store }) => {
     seedReserved();
     await store.failJob('j1', 'first', COMPLETE_AT);
     await store.failJob('j1', 'second', COMPLETE_AT + 100);
@@ -122,7 +82,7 @@ describe('UserStore.failJob', () => {
 });
 
 describe('UserStore.completeJobIfRunning', () => {
-  it('completes a running job cleanly when error is undefined', async () => {
+  it('completes a running job cleanly when error is undefined', async ({ ocrJob, seedTranscribing, store }) => {
     await seedTranscribing();
     await store.completeJobIfRunning('j1', undefined, COMPLETE_AT);
     const job = ocrJob();
@@ -130,13 +90,13 @@ describe('UserStore.completeJobIfRunning', () => {
     expect(job.error).toBeNull();
   });
 
-  it('fails a running job when an error is provided', async () => {
+  it('fails a running job when an error is provided', async ({ ocrJob, seedTranscribing, store }) => {
     await seedTranscribing();
     await store.completeJobIfRunning('j1', 'pages failed', COMPLETE_AT);
     expect(ocrJob()).toMatchObject({ completed_at: COMPLETE_AT, error: 'pages failed', status: 'failed' });
   });
 
-  it('is a no-op when the job is already terminal', async () => {
+  it('is a no-op when the job is already terminal', async ({ ocrJob, seedReserved, store }) => {
     seedReserved();
     await store.failJob('j1', 'first', COMPLETE_AT);
     await store.completeJobIfRunning('j1', 'second', COMPLETE_AT + 100);
@@ -145,7 +105,7 @@ describe('UserStore.completeJobIfRunning', () => {
 });
 
 describe('UserStore.applyResult (page)', () => {
-  it('marks the page done with markdown_key and records the receipt', async () => {
+  it('marks the page done with markdown_key', async ({ mdPage, seedTranscribing, store }) => {
     await seedTranscribing('j1', 2);
     const applied = store.applyResult(
       { markdownKey: 'md/j1/p1.md', ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'done' },
@@ -161,10 +121,9 @@ describe('UserStore.applyResult (page)', () => {
     });
     expect(page.error).toBeNull();
     expect(mdPage('j1', 2)).toMatchObject({ status: 'transcribing' });
-    expect(receivedResultIds()).toEqual(['r1']);
   });
 
-  it('marks the page failed when status=failed', async () => {
+  it('marks the page failed when status=failed', async ({ mdPage, seedTranscribing, store }) => {
     await seedTranscribing();
     const applied = store.applyResult(
       { error: 'OCR crashed', ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'failed' },
@@ -177,13 +136,17 @@ describe('UserStore.applyResult (page)', () => {
     expect(page.markdown_key).toBeNull();
   });
 
-  it('defaults to "failed" when status=failed and no error message is supplied', async () => {
+  it('defaults to "failed" when status=failed and no error message is supplied', async ({
+    mdPage,
+    seedTranscribing,
+    store,
+  }) => {
     await seedTranscribing();
     store.applyResult({ ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'failed' }, COMPLETE_AT);
     expect(mdPage('j1', 1)).toMatchObject({ error: 'failed' });
   });
 
-  it('returns false on replay but still records the receipt for forensics', async () => {
+  it('returns false on replay against an already finalized page', async ({ mdPage, seedTranscribing, store }) => {
     await seedTranscribing();
     const first = store.applyResult(
       { markdownKey: 'md/j1/p1.md', ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'done' },
@@ -197,19 +160,50 @@ describe('UserStore.applyResult (page)', () => {
     expect(first).toBe(true);
     expect(replay).toBe(false);
     expect(mdPage('j1', 1).markdown_key).toBe('md/j1/p1.md');
-    expect(receivedResultIds().toSorted()).toEqual(['r1', 'r2']);
   });
 
-  it('does not re-insert the same resultId twice', async () => {
+  it('replaying a failed result is a no-op and leaves sibling pages untouched', async ({
+    mdPage,
+    seedTranscribing,
+    store,
+  }) => {
+    await seedTranscribing('j1', 3);
+    const first = store.applyResult(
+      { error: 'boom', ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'failed' },
+      COMPLETE_AT,
+    );
+    const replay = store.applyResult(
+      { error: 'boom', ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'failed' },
+      COMPLETE_AT + 1,
+    );
+
+    expect(first).toBe(true);
+    expect(replay).toBe(false);
+    expect(mdPage('j1', 1)).toMatchObject({ completed_at: COMPLETE_AT, error: 'boom', status: 'failed' });
+    expect(mdPage('j1', 2)).toMatchObject({ status: 'transcribing' });
+    expect(mdPage('j1', 3)).toMatchObject({ status: 'transcribing' });
+  });
+
+  it('a failed page rejects a subsequent success replay', async ({ mdPage, seedTranscribing, store }) => {
     await seedTranscribing();
-    store.applyResult({ ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'failed' }, COMPLETE_AT);
-    store.applyResult({ ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'failed' }, COMPLETE_AT + 1);
-    expect(receivedResultIds()).toEqual(['r1']);
+    store.applyResult(
+      { error: 'boom', ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'failed' },
+      COMPLETE_AT,
+    );
+    const replay = store.applyResult(
+      { markdownKey: 'md/j1/p1.md', ocrJobId: 'j1', pageNumber: 1, resultId: 'r2', status: 'done' },
+      COMPLETE_AT + 100,
+    );
+
+    expect(replay).toBe(false);
+    const page = mdPage('j1', 1);
+    expect(page).toMatchObject({ completed_at: COMPLETE_AT, error: 'boom', status: 'failed' });
+    expect(page.markdown_key).toBeNull();
   });
 });
 
 describe('UserStore.applyResult (job)', () => {
-  it('marks the job done when no pageNumber is given', async () => {
+  it('marks the job done when no pageNumber is given', async ({ ocrJob, seedTranscribing, store }) => {
     await seedTranscribing();
     const applied = store.applyResult({ ocrJobId: 'j1', resultId: 'r1', status: 'done' }, COMPLETE_AT);
 
@@ -219,7 +213,7 @@ describe('UserStore.applyResult (job)', () => {
     expect(job.error).toBeNull();
   });
 
-  it('marks the job failed when status=failed', async () => {
+  it('marks the job failed when status=failed', async ({ ocrJob, seedTranscribing, store }) => {
     await seedTranscribing();
     const applied = store.applyResult(
       { error: 'pipeline aborted', ocrJobId: 'j1', resultId: 'r1', status: 'failed' },
@@ -230,7 +224,7 @@ describe('UserStore.applyResult (job)', () => {
     expect(ocrJob()).toMatchObject({ error: 'pipeline aborted', status: 'failed' });
   });
 
-  it('returns false on replay against an already terminal job', async () => {
+  it('returns false on replay against an already terminal job', async ({ ocrJob, seedTranscribing, store }) => {
     await seedTranscribing();
     store.applyResult({ ocrJobId: 'j1', resultId: 'r1', status: 'done' }, COMPLETE_AT);
     const replay = store.applyResult({ ocrJobId: 'j1', resultId: 'r2', status: 'failed' }, COMPLETE_AT + 100);
@@ -238,14 +232,23 @@ describe('UserStore.applyResult (job)', () => {
     expect(replay).toBe(false);
     expect(ocrJob()).toMatchObject({ status: 'done' });
   });
+
+  it('a failed job rejects a subsequent success replay', async ({ ocrJob, seedTranscribing, store }) => {
+    await seedTranscribing();
+    store.applyResult({ error: 'pipeline aborted', ocrJobId: 'j1', resultId: 'r1', status: 'failed' }, COMPLETE_AT);
+    const replay = store.applyResult({ ocrJobId: 'j1', resultId: 'r2', status: 'done' }, COMPLETE_AT + 100);
+
+    expect(replay).toBe(false);
+    expect(ocrJob()).toMatchObject({ completed_at: COMPLETE_AT, error: 'pipeline aborted', status: 'failed' });
+  });
 });
 
 describe('UserStore.countInflight', () => {
-  it('returns 0 when there are no jobs', async () => {
+  it('returns 0 when there are no jobs', async ({ store }) => {
     expect(await store.countInflight()).toBe(0);
   });
 
-  it('counts only jobs without completion and without error', async () => {
+  it('counts only jobs without completion and without error', async ({ seedReserved, seedTranscribing, store }) => {
     seedReserved('running-1');
     seedReserved('running-2');
     await seedTranscribing('done-1');
@@ -258,7 +261,7 @@ describe('UserStore.countInflight', () => {
 });
 
 describe('UserStore.countInflightPages', () => {
-  it('counts only in-flight pages for the given job', async () => {
+  it('counts only in-flight pages for the given job', async ({ seedTranscribing, store }) => {
     await seedTranscribing('j1', 3);
     await seedTranscribing('j2', 2);
     store.applyResult({ markdownKey: 'k', ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'done' }, COMPLETE_AT);
@@ -270,7 +273,7 @@ describe('UserStore.countInflightPages', () => {
 });
 
 describe('UserStore.findStaleJobs', () => {
-  it('returns jobs created before the cutoff that are still running', async () => {
+  it('returns jobs created before the cutoff that are still running', async ({ seedReserved, store }) => {
     seedReserved('old', 0, 'u/old', 500);
     seedReserved('new', 0, 'u/new', 5000);
 
@@ -278,7 +281,7 @@ describe('UserStore.findStaleJobs', () => {
     expect(stale.map(s => s.id)).toEqual(['old']);
   });
 
-  it('omits jobs that have already completed or failed', async () => {
+  it('omits jobs that have already completed or failed', async ({ seedReserved, store }) => {
     seedReserved('done', 0, 'u/done', 500);
     seedReserved('failed', 0, 'u/failed', 500);
     seedReserved('running', 0, 'u/running', 500);
@@ -293,7 +296,7 @@ describe('UserStore.findStaleJobs', () => {
 });
 
 describe('UserStore.hasFailedPage', () => {
-  it('returns true once any page is failed', async () => {
+  it('returns true once any page is failed', async ({ seedTranscribing, store }) => {
     await seedTranscribing('j1', 2);
     expect(await store.hasFailedPage('j1')).toBe(false);
 
@@ -301,7 +304,7 @@ describe('UserStore.hasFailedPage', () => {
     expect(await store.hasFailedPage('j1')).toBe(true);
   });
 
-  it('ignores pages on other jobs', async () => {
+  it('ignores pages on other jobs', async ({ seedTranscribing, store }) => {
     await seedTranscribing('j1', 1);
     await seedTranscribing('j2', 1);
     store.applyResult({ error: 'x', ocrJobId: 'j2', pageNumber: 1, resultId: 'r1', status: 'failed' }, COMPLETE_AT);
@@ -312,7 +315,7 @@ describe('UserStore.hasFailedPage', () => {
 });
 
 describe('UserStore.readSnapshot', () => {
-  it('orders jobs by created_at desc and pages by (ocr_job_id, page_number)', async () => {
+  it('orders jobs by created_at desc and pages by (ocr_job_id, page_number)', async ({ seedReserved, store }) => {
     seedReserved('older', 0, 'u/older', 500);
     seedReserved('newer', 0, 'u/newer', 1500);
     await store.confirmUpload({ ocrJobId: 'older', sizeBytes: 0, totalPages: 2 }, 600);
@@ -330,26 +333,26 @@ describe('UserStore.readSnapshot', () => {
 });
 
 describe('UserStore.requireOcrJob', () => {
-  it('returns the job when present', async () => {
+  it('returns the job when present', async ({ seedReserved, store }) => {
     seedReserved();
     const job = await store.requireOcrJob('j1');
     expect(job.id).toBe('j1');
   });
 
-  it('throws when the job is missing', async () => {
+  it('throws when the job is missing', async ({ store }) => {
     await expect(store.requireOcrJob('nope')).rejects.toThrow(/ocr job not found: nope/);
   });
 });
 
 describe('UserStore.requireMdPage', () => {
-  it('returns the page when present', async () => {
+  it('returns the page when present', async ({ seedReserved, store }) => {
     seedReserved();
     await store.confirmUpload({ ocrJobId: 'j1', sizeBytes: 0, totalPages: 1 }, UPLOAD_AT);
     const page = await store.requireMdPage('j1', 1);
     expect(page).toMatchObject({ ocr_job_id: 'j1', page_number: 1, status: 'transcribing' });
   });
 
-  it('throws when the page is missing', async () => {
+  it('throws when the page is missing', async ({ seedReserved, store }) => {
     seedReserved();
     await expect(store.requireMdPage('j1', 99)).rejects.toThrow(/md page not found: j1\/99/);
   });

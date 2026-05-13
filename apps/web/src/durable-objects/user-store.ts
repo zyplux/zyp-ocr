@@ -1,6 +1,6 @@
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 
-import { and, count, desc, eq, isNotNull, isNull, lt, sql } from 'drizzle-orm';
+import { and, count, desc, eq, lt, notInArray, sql } from 'drizzle-orm';
 
 import * as schema from '~/durable-objects/schema';
 
@@ -32,11 +32,6 @@ export class UserStore<TRunResult = unknown> {
 
   applyResult = (input: ApplyResultInput, now: number) =>
     this.db.transaction(tx => {
-      tx.insert(schema.received_results)
-        .values({ received_at: now, result_id: input.resultId })
-        .onConflictDoNothing()
-        .run();
-
       if (typeof input.pageNumber === 'number') {
         const updated = tx
           .update(schema.md_pages)
@@ -49,8 +44,7 @@ export class UserStore<TRunResult = unknown> {
             and(
               eq(schema.md_pages.ocr_job_id, input.ocrJobId),
               eq(schema.md_pages.page_number, input.pageNumber),
-              isNull(schema.md_pages.completed_at),
-              isNull(schema.md_pages.error),
+              eq(schema.md_pages.status, 'transcribing'),
             ),
           )
           .returning({ pn: schema.md_pages.page_number })
@@ -62,13 +56,7 @@ export class UserStore<TRunResult = unknown> {
       const updated = tx
         .update(schema.ocr_jobs)
         .set({ completed_at: now, error: finalError })
-        .where(
-          and(
-            eq(schema.ocr_jobs.id, input.ocrJobId),
-            isNull(schema.ocr_jobs.completed_at),
-            isNull(schema.ocr_jobs.error),
-          ),
-        )
+        .where(and(eq(schema.ocr_jobs.id, input.ocrJobId), eq(schema.ocr_jobs.status, 'transcribing')))
         .returning({ id: schema.ocr_jobs.id })
         .all();
       return updated.length > 0;
@@ -78,9 +66,7 @@ export class UserStore<TRunResult = unknown> {
     await this.db
       .update(schema.ocr_jobs)
       .set({ completed_at: completedAt, error: error ?? sql`NULL` })
-      .where(
-        and(eq(schema.ocr_jobs.id, ocrJobId), isNull(schema.ocr_jobs.completed_at), isNull(schema.ocr_jobs.error)),
-      );
+      .where(and(eq(schema.ocr_jobs.id, ocrJobId), eq(schema.ocr_jobs.status, 'transcribing')));
   };
 
   confirmUpload = async (input: ConfirmUploadInput, now: number) => {
@@ -102,7 +88,7 @@ export class UserStore<TRunResult = unknown> {
     const [row] = await this.db
       .select({ c: count() })
       .from(schema.ocr_jobs)
-      .where(and(isNull(schema.ocr_jobs.completed_at), isNull(schema.ocr_jobs.error)));
+      .where(notInArray(schema.ocr_jobs.status, ['done', 'failed']));
     return row?.c ?? 0;
   };
 
@@ -110,13 +96,7 @@ export class UserStore<TRunResult = unknown> {
     const [row] = await this.db
       .select({ c: count() })
       .from(schema.md_pages)
-      .where(
-        and(
-          eq(schema.md_pages.ocr_job_id, ocrJobId),
-          isNull(schema.md_pages.completed_at),
-          isNull(schema.md_pages.error),
-        ),
-      );
+      .where(and(eq(schema.md_pages.ocr_job_id, ocrJobId), eq(schema.md_pages.status, 'transcribing')));
     return row?.c ?? 0;
   };
 
@@ -136,19 +116,13 @@ export class UserStore<TRunResult = unknown> {
         upload_key: schema.ocr_jobs.upload_key,
       })
       .from(schema.ocr_jobs)
-      .where(
-        and(
-          isNull(schema.ocr_jobs.completed_at),
-          isNull(schema.ocr_jobs.error),
-          lt(schema.ocr_jobs.created_at, cutoff),
-        ),
-      );
+      .where(and(notInArray(schema.ocr_jobs.status, ['done', 'failed']), lt(schema.ocr_jobs.created_at, cutoff)));
 
   hasFailedPage = async (ocrJobId: string) => {
     const [row] = await this.db
       .select({ c: count() })
       .from(schema.md_pages)
-      .where(and(eq(schema.md_pages.ocr_job_id, ocrJobId), isNotNull(schema.md_pages.error)));
+      .where(and(eq(schema.md_pages.ocr_job_id, ocrJobId), eq(schema.md_pages.status, 'failed')));
     return (row?.c ?? 0) > 0;
   };
 

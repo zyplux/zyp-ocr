@@ -106,10 +106,5 @@ export const md_pages = sqliteTable(
   ],
 );
 
-export const received_results = sqliteTable('received_results', {
-  received_at: integer().notNull(),
-  result_id: text().primaryKey(),
-});
-
 export type MdPageDbRow = typeof md_pages.$inferSelect;
 export type OcrJobDbRow = typeof ocr_jobs.$inferSelect;

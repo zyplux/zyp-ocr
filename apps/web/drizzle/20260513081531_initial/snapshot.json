@@ -1,8 +1,10 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "544e1dfb-5332-43d2-be2b-0b9a459610d5",
-  "prevIds": ["00000000-0000-0000-0000-000000000000"],
+  "id": "ad8b5a51-4222-43ca-b154-3390af04a975",
+  "prevIds": [
+    "00000000-0000-0000-0000-000000000000"
+  ],
   "ddl": [
     {
       "name": "md_pages",
@@ -10,10 +12,6 @@
     },
     {
       "name": "ocr_jobs",
-      "entityType": "tables"
-    },
-    {
-      "name": "received_results",
       "entityType": "tables"
     },
     {
@@ -203,29 +201,13 @@
       "table": "ocr_jobs"
     },
     {
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "received_at",
-      "entityType": "columns",
-      "table": "received_results"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "result_id",
-      "entityType": "columns",
-      "table": "received_results"
-    },
-    {
-      "columns": ["ocr_job_id"],
+      "columns": [
+        "ocr_job_id"
+      ],
       "tableTo": "ocr_jobs",
-      "columnsTo": ["id"],
+      "columnsTo": [
+        "id"
+      ],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "nameExplicit": false,
@@ -234,24 +216,22 @@
       "table": "md_pages"
     },
     {
-      "columns": ["ocr_job_id", "page_number"],
+      "columns": [
+        "ocr_job_id",
+        "page_number"
+      ],
       "nameExplicit": false,
       "name": "md_pages_pk",
       "entityType": "pks",
       "table": "md_pages"
     },
     {
-      "columns": ["id"],
+      "columns": [
+        "id"
+      ],
       "nameExplicit": false,
       "name": "ocr_jobs_pk",
       "table": "ocr_jobs",
-      "entityType": "pks"
-    },
-    {
-      "columns": ["result_id"],
-      "nameExplicit": false,
-      "name": "received_results_pk",
-      "table": "received_results",
       "entityType": "pks"
     },
     {
