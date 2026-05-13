@@ -57,9 +57,9 @@ format:
     pnpm exec prettier --write .
     uv run --active ruff format .
 
-# Type-check JS (root + all workspaces) and transcription-api Python; runs `format` first (skip with --check/-c).
+# Type-check JS (root + all workspaces) and transcription-api Python; runs `knip` then `format` first (skip format with --check/-c).
 [arg('fix', short='c', long='check', value='')]
-typecheck fix='--fix':
+typecheck fix='--fix': knip
     {{ if fix == '--fix' { 'just format' } else { ':' } }}
     pnpm typecheck
     uv run --active ty check services/transcription-api/src

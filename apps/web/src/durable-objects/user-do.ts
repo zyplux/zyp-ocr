@@ -8,14 +8,13 @@ import type { TranscriptionUpdate } from '~/server';
 import type { ConfirmUploadInput, ReserveUploadInput } from '~/server-fns/uploads';
 
 import { DEFAULT_RECONCILE_TIMEOUT_SECONDS, DEFAULT_USER_ID, MAX_INFLIGHT_JOBS, TOKEN_TTL_SECONDS } from '~/constants';
+import { TranscriptionSubmission, TranscriptionSubmissionAck } from '~/contracts';
 import migrations from '~/durable-objects/migrations';
 import * as schema from '~/durable-objects/schema';
 import { UserStore } from '~/durable-objects/user-store';
 import { getMessage } from '~/lib/error';
 import { type ResultClaims, signResultToken } from '~/lib/result-token';
 import { blob } from '~/lib/s3';
-
-export type SubscribeResult = { id: string; stream: ReadableStream<Uint8Array> };
 
 const PAGES_FAILED_REASON = 'one or more pages failed';
 
@@ -68,7 +67,7 @@ export class UserDO extends DurableObject<Env> {
         const resultId = ulid();
         const token = await this.signTokenFor({ ocrJobId, resultId, userId: DEFAULT_USER_ID });
         const resultBase = this.env.WORKER_INTERNAL_BASE ?? this.env.PUBLIC_BASE;
-        const payload = {
+        const payload: TranscriptionSubmission = {
           ocr_job_id: ocrJobId,
           result_token: token,
           result_url: `${resultBase}/api/transcription/results`,
@@ -84,7 +83,7 @@ export class UserDO extends DurableObject<Env> {
             const body = await res.text();
             throw new Error(`transcription /submit: ${res.status} ${body}`);
           }
-          const ack: { pipeline_id: string } = await res.json();
+          const ack = TranscriptionSubmissionAck.parse(await res.json());
           this.setPipelineId(ocrJobId, ack.pipeline_id);
         } catch (err) {
           const failed = this.store.failJob(ocrJobId, getMessage(err, 'transcription submit'), Date.now());

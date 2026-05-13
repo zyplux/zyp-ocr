@@ -58,6 +58,17 @@ The publicly shippable release. The architectural moves are small; the operation
 - [ ] **Batch upload + side-by-side preview.** Pure SPA work once the data layer's stable.
 - [ ] **Parallel md_pages per ocr job.** Pipeline-side concurrency knob; the DO already handles out-of-order callbacks because it keys on `(ocr_job_id, page_number)`.
 
+## Deferred dependencies (removed during knip cleanup — re-add when needed)
+
+Pruned on 2026-05-13 to keep `just knip` green. Each entry below is intentional future work; the package is gone from `apps/web/package.json` and `pnpm-workspace.yaml#catalog` and must be re-added there when the feature lands.
+
+- **`react-markdown` + `remark-gfm` + `remark-math` + `rehype-katex` + `katex`.** Backed the rich `~/client/markdown.tsx` component that rendered per-page OCR markdown with GFM tables + KaTeX math. The component itself is preserved as a `<pre>`-only stub so call sites and tests stay valid; swap the stub body for the original `ReactMarkdown` tree (with `rehypeKatex` + `remarkGfm` + `remarkMath` plugins and the `katex/dist/katex.min.css` import) when the reader UI lands.
+- **`jotai`.** Earmarked for client-side state (selection, filters, transient UI). No store wired yet; re-add the catalog entry + `apps/web` dep when the first atom appears.
+
+### Single intentional knip suppression — `cloudflare`
+
+`knip.json#workspaces."apps/web".ignoreDependencies` lists `cloudflare`. This is not a real npm package — `cloudflare:workers` is the CF Workers runtime virtual module (declared ambiently by `@cloudflare/workers-types`). Knip 6 does not understand the `<prefix>:<specifier>` virtual-module convention and reports it as an "unlisted dependency" instead. Re-evaluate the suppression whenever knip is upgraded; if a future release ships a wrangler/workers plugin that knows about virtual modules, drop the line.
+
 ## Known unknowns (track, don't fix)
 
 These are surfaced from §14 of the main plan plus things observed in this session. They turn into explicit TODOs once we hit them.

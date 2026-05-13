@@ -8,9 +8,9 @@ import type { ConfirmUploadInput, ReserveUploadInput } from '~/server-fns/upload
 
 import * as schema from '~/durable-objects/schema';
 
-export type SavedUpdate = { op: 'md-page-upsert'; row: MdPageDbRow } | { op: 'ocr-job-upsert'; row: OcrJobDbRow };
-
 export type StoreDb<TRunResult = unknown> = BaseSQLiteDatabase<'sync', TRunResult, typeof schema>;
+
+type SavedUpdate = { op: 'md-page-upsert'; row: MdPageDbRow } | { op: 'ocr-job-upsert'; row: OcrJobDbRow };
 
 export class UserStore<TRunResult = unknown> {
   constructor(private readonly db: StoreDb<TRunResult>) {}

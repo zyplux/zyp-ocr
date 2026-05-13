@@ -3,7 +3,7 @@ import type { ESLint } from 'eslint';
 
 import { ESLintUtils } from '@typescript-eslint/utils';
 
-export type EslintRule = NonNullable<ESLint.Plugin['rules']>[string];
+type EslintRule = NonNullable<ESLint.Plugin['rules']>[string];
 
 type StrictCreate = EslintRule['create'];
 type StrictVisitor = ReturnType<StrictCreate>;
