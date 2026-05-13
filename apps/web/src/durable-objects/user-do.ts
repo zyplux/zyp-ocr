@@ -61,7 +61,37 @@ export class UserDO extends DurableObject<Env> {
   confirmUpload(input: ConfirmUploadInput) {
     const broadcasts = this.store.confirmUpload(input, Date.now());
     for (const delta of broadcasts) this.broadcast(delta);
-    this.ctx.waitUntil(this.submitToPipeline(input.ocrJobId));
+    const { ocrJobId } = input;
+    this.ctx.waitUntil(
+      (async () => {
+        const ocrJob = await this.store.requireOcrJob(ocrJobId);
+        const resultId = ulid();
+        const token = await this.signTokenFor({ ocrJobId, resultId, userId: DEFAULT_USER_ID });
+        const resultBase = this.env.WORKER_INTERNAL_BASE ?? this.env.PUBLIC_BASE;
+        const payload = {
+          ocr_job_id: ocrJobId,
+          result_token: token,
+          result_url: `${resultBase}/api/transcription/results`,
+          upload_key: ocrJob.upload_key,
+        };
+        try {
+          const res = await fetch(`${this.env.TRANSCRIPTION_BASE}/submit`, {
+            body: JSON.stringify(payload),
+            headers: { 'content-type': 'application/json' },
+            method: 'POST',
+          });
+          if (!res.ok) {
+            const body = await res.text();
+            throw new Error(`transcription /submit: ${res.status} ${body}`);
+          }
+          const ack: { pipeline_id: string } = await res.json();
+          this.setPipelineId(ocrJobId, ack.pipeline_id);
+        } catch (err) {
+          const failed = this.store.failJob(ocrJobId, getMessage(err, 'transcription submit'), Date.now());
+          if (failed) this.broadcast(failed);
+        }
+      })(),
+    );
   }
 
   failUpload(ocrJobId: string, error: string) {
@@ -74,9 +104,17 @@ export class UserDO extends DurableObject<Env> {
     if (!saved) return;
 
     this.broadcast(saved);
-    if (saved.op === 'md-page-upsert') {
-      await this.maybeCompleteOcrJob(input.ocrJobId);
-    }
+    if (saved.op !== 'md-page-upsert') return;
+
+    const inflight = await this.store.countInflightPages(input.ocrJobId);
+    if (inflight > 0) return;
+    const failed = await this.store.hasFailedPage(input.ocrJobId);
+    const completed = this.store.completeJobIfRunning(
+      input.ocrJobId,
+      failed ? PAGES_FAILED_REASON : undefined,
+      Date.now(),
+    );
+    if (completed) this.broadcast(completed);
   }
 
   async reserveUpload(input: ReserveUploadInput) {
@@ -85,7 +123,11 @@ export class UserDO extends DurableObject<Env> {
     }
     const reserved = this.store.reserveJob(input, Date.now());
     if (reserved) this.broadcast(reserved);
-    await this.scheduleReconcile();
+
+    const existingAlarm = await this.ctx.storage.getAlarm();
+    if (existingAlarm === null) {
+      await this.ctx.storage.setAlarm(Date.now() + this.reconcileTimeoutMs());
+    }
   }
 
   setPipelineId(ocrJobId: string, pipelineId: string) {
@@ -138,55 +180,8 @@ export class UserDO extends DurableObject<Env> {
     }
   }
 
-  private async maybeCompleteOcrJob(ocrJobId: string) {
-    const inflight = await this.store.countInflightPages(ocrJobId);
-    if (inflight > 0) return;
-    const failed = await this.store.hasFailedPage(ocrJobId);
-    const completed = this.store.completeJobIfRunning(ocrJobId, failed ? PAGES_FAILED_REASON : undefined, Date.now());
-    if (completed) this.broadcast(completed);
-  }
-
   private reconcileTimeoutMs() {
     const seconds = Number.parseInt(this.env.RECONCILE_TIMEOUT_SECONDS, 10);
     return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : DEFAULT_RECONCILE_TIMEOUT_SECONDS * 1000;
-  }
-
-  private async scheduleReconcile() {
-    const existing = await this.ctx.storage.getAlarm();
-    if (existing !== null) return;
-    await this.ctx.storage.setAlarm(Date.now() + this.reconcileTimeoutMs());
-  }
-
-  private async submitToPipeline(ocrJobId: string) {
-    const ocrJob = await this.store.requireOcrJob(ocrJobId);
-    const resultId = ulid();
-    const token = await this.signTokenFor({
-      ocrJobId,
-      resultId,
-      userId: DEFAULT_USER_ID,
-    });
-    const resultBase = this.env.WORKER_INTERNAL_BASE ?? this.env.PUBLIC_BASE;
-    const payload = {
-      ocr_job_id: ocrJobId,
-      result_token: token,
-      result_url: `${resultBase}/api/transcription/results`,
-      upload_key: ocrJob.upload_key,
-    };
-    try {
-      const res = await fetch(`${this.env.TRANSCRIPTION_BASE}/submit`, {
-        body: JSON.stringify(payload),
-        headers: { 'content-type': 'application/json' },
-        method: 'POST',
-      });
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`transcription /submit: ${res.status} ${body}`);
-      }
-      const ack: { pipeline_id: string } = await res.json();
-      this.setPipelineId(ocrJobId, ack.pipeline_id);
-    } catch (err) {
-      const failed = this.store.failJob(ocrJobId, getMessage(err, 'transcription submit'), Date.now());
-      if (failed) this.broadcast(failed);
-    }
   }
 }

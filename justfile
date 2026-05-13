@@ -82,6 +82,10 @@ test fix='--fix': (lint fix)
 e2e fix='--fix': (test fix)
     TOTVIBE_E2E=1 uv run --active pytest -k e2e
 
+# Report unused files, dependencies, and exports across the JS workspace via knip.
+knip:
+    pnpm exec knip
+
 # Load fixture objects into the local MinIO bucket for development.
 seed-minio:
     uv run scripts/seed_minio.py

@@ -22,12 +22,16 @@ catalog:
   drizzle-kit: 1.0.0-rc.2-e38a2ba
   drizzle-orm: 1.0.0-rc.2-e38a2ba
   eslint: ^10.3.0
+  eslint-config-prettier: ^10.1.8
+  eslint-plugin-perfectionist: ^5.9.0
   eslint-plugin-react: ^7.37.5
   eslint-plugin-react-hooks: ^7.1.1
+  eslint-plugin-unicorn: ^64.0.0
   hono: ^4.12.18
   jotai: ^2.20.0
   jsdom: ^29.1.1
   katex: ^0.16.45
+  knip: ^6.13.1
   prettier: ^3.8.3
   react: ^19.2.6
   react-dom: ^19.2.6

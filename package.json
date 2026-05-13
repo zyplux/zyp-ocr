@@ -12,18 +12,20 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p . && pnpm -r typecheck",
     "test": "pnpm -r test",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "knip": "knip"
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
     "@totvibe/eslint-plugin": "workspace:*",
     "@types/node": "catalog:",
     "eslint": "catalog:",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-perfectionist": "^5.9.0",
+    "eslint-config-prettier": "catalog:",
+    "eslint-plugin-perfectionist": "catalog:",
     "eslint-plugin-react": "catalog:",
     "eslint-plugin-react-hooks": "catalog:",
-    "eslint-plugin-unicorn": "^64.0.0",
+    "eslint-plugin-unicorn": "catalog:",
+    "knip": "catalog:",
     "prettier": "catalog:",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:"
