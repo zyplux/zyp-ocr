@@ -4,22 +4,16 @@ import { migrate } from 'drizzle-orm/durable-sqlite/migrator';
 import { ulid } from 'ulid';
 
 import type { Delta } from '~/durable-objects/wire';
+import type { TranscriptionUpdate } from '~/server';
+import type { ConfirmUploadInput, ReserveUploadInput } from '~/server-fns/uploads';
 
 import { DEFAULT_RECONCILE_TIMEOUT_SECONDS, DEFAULT_USER_ID, MAX_INFLIGHT_JOBS, TOKEN_TTL_SECONDS } from '~/constants';
 import migrations from '~/durable-objects/migrations';
 import * as schema from '~/durable-objects/schema';
-import {
-  type ApplyResultInput,
-  type ConfirmUploadInput,
-  type ReserveJobInput,
-  UserStore,
-} from '~/durable-objects/user-store';
+import { UserStore } from '~/durable-objects/user-store';
 import { getMessage } from '~/lib/error';
 import { type ResultClaims, signResultToken } from '~/lib/result-token';
 import { blob } from '~/lib/s3';
-
-export type { ApplyResultInput, ConfirmUploadInput } from '~/durable-objects/user-store';
-export type ReserveUploadInput = ReserveJobInput;
 
 export type SubscribeResult = { id: string; stream: ReadableStream<Uint8Array> };
 
@@ -56,67 +50,52 @@ export class UserDO extends DurableObject<Env> {
           /* best-effort cleanup; failed delete should not block fail-marking */
         }
       }
-      await this.store.failJob(ocrJob.id, isAwaitingUpload ? 'upload abandoned' : 'timeout', now);
-      this.broadcast({ op: 'ocr-job-upsert', row: await this.store.requireOcrJob(ocrJob.id) });
+      const failed = this.store.failJob(ocrJob.id, isAwaitingUpload ? 'upload abandoned' : 'timeout', now);
+      if (failed) this.broadcast(failed);
     }
     if ((await this.store.countInflight()) > 0) {
       await this.ctx.storage.setAlarm(now + this.reconcileTimeoutMs());
     }
   }
 
-  // Per-result delivery handler: audit the delivery for forensics, then
-  // CAS-update the target row with a "still in flight" predicate. If the row
-  // already moved to a terminal state (replay or out-of-order), the audit row
-  // is still written but the data write is a no-op and we skip broadcasts.
-  // The DO is single-writer, so the transaction wraps the two writes purely
-  // for atomicity-on-error; concurrency is not a concern.
-  async applyResult(input: ApplyResultInput) {
-    const applied = this.store.applyResult(input, Date.now());
-    if (!applied) return;
-
-    if (typeof input.pageNumber === 'number') {
-      this.broadcast({ op: 'md-page-upsert', row: await this.store.requireMdPage(input.ocrJobId, input.pageNumber) });
-      await this.maybeCompleteOcrJob(input.ocrJobId);
-      return;
-    }
-    this.broadcast({ op: 'ocr-job-upsert', row: await this.store.requireOcrJob(input.ocrJobId) });
-  }
-
-  async confirmUpload(input: ConfirmUploadInput) {
-    await this.store.confirmUpload(input, Date.now());
-    this.broadcast({ op: 'ocr-job-upsert', row: await this.store.requireOcrJob(input.ocrJobId) });
-    for (let n = 1; n <= input.totalPages; n++) {
-      this.broadcast({ op: 'md-page-upsert', row: await this.store.requireMdPage(input.ocrJobId, n) });
-    }
+  confirmUpload(input: ConfirmUploadInput) {
+    const broadcasts = this.store.confirmUpload(input, Date.now());
+    for (const delta of broadcasts) this.broadcast(delta);
     this.ctx.waitUntil(this.submitToPipeline(input.ocrJobId));
   }
 
-  async failUpload(ocrJobId: string, error: string) {
-    await this.store.failJob(ocrJobId, error, Date.now());
-    this.broadcast({ op: 'ocr-job-upsert', row: await this.store.requireOcrJob(ocrJobId) });
+  failUpload(ocrJobId: string, error: string) {
+    const failed = this.store.failJob(ocrJobId, error, Date.now());
+    if (failed) this.broadcast(failed);
+  }
+
+  async onTranscriptionUpdate(input: TranscriptionUpdate) {
+    const saved = this.store.saveUpdate(input, Date.now());
+    if (!saved) return;
+
+    this.broadcast(saved);
+    if (saved.op === 'md-page-upsert') {
+      await this.maybeCompleteOcrJob(input.ocrJobId);
+    }
   }
 
   async reserveUpload(input: ReserveUploadInput) {
     if ((await this.store.countInflight()) >= MAX_INFLIGHT_JOBS) {
       throw new Error(`too many in-flight jobs (max ${MAX_INFLIGHT_JOBS})`);
     }
-    await this.store.reserveJob(input, Date.now());
-    this.broadcast({ op: 'ocr-job-upsert', row: await this.store.requireOcrJob(input.ocrJobId) });
+    const reserved = this.store.reserveJob(input, Date.now());
+    if (reserved) this.broadcast(reserved);
     await this.scheduleReconcile();
   }
 
-  async setPipelineId(ocrJobId: string, pipelineId: string) {
-    await this.store.setPipelineId(ocrJobId, pipelineId, Date.now());
-    this.broadcast({ op: 'ocr-job-upsert', row: await this.store.requireOcrJob(ocrJobId) });
+  setPipelineId(ocrJobId: string, pipelineId: string) {
+    const updated = this.store.setPipelineId(ocrJobId, pipelineId, Date.now());
+    if (updated) this.broadcast(updated);
   }
 
   async signTokenFor(claims: Omit<ResultClaims, 'exp'>) {
     const exp = Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS;
     return await signResultToken({ ...claims, exp }, this.env.RESULT_HMAC_SECRET);
-  }
-
-  async snapshot() {
-    return await this.store.readSnapshot();
   }
 
   async subscribe() {
@@ -163,8 +142,8 @@ export class UserDO extends DurableObject<Env> {
     const inflight = await this.store.countInflightPages(ocrJobId);
     if (inflight > 0) return;
     const failed = await this.store.hasFailedPage(ocrJobId);
-    await this.store.completeJobIfRunning(ocrJobId, failed ? PAGES_FAILED_REASON : undefined, Date.now());
-    this.broadcast({ op: 'ocr-job-upsert', row: await this.store.requireOcrJob(ocrJobId) });
+    const completed = this.store.completeJobIfRunning(ocrJobId, failed ? PAGES_FAILED_REASON : undefined, Date.now());
+    if (completed) this.broadcast(completed);
   }
 
   private reconcileTimeoutMs() {
@@ -204,10 +183,10 @@ export class UserDO extends DurableObject<Env> {
         throw new Error(`transcription /submit: ${res.status} ${body}`);
       }
       const ack: { pipeline_id: string } = await res.json();
-      await this.setPipelineId(ocrJobId, ack.pipeline_id);
+      this.setPipelineId(ocrJobId, ack.pipeline_id);
     } catch (err) {
-      await this.store.failJob(ocrJobId, getMessage(err, 'transcription submit'), Date.now());
-      this.broadcast({ op: 'ocr-job-upsert', row: await this.store.requireOcrJob(ocrJobId) });
+      const failed = this.store.failJob(ocrJobId, getMessage(err, 'transcription submit'), Date.now());
+      if (failed) this.broadcast(failed);
     }
   }
 }

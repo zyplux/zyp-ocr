@@ -13,6 +13,18 @@ const PUT_TTL_SECONDS = 600;
 const ReserveSchema = z.object({ sizeBytes: z.number().int().positive().max(MAX_PDF_BYTES) });
 const ConfirmSchema = z.object({ ocrJobId: z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/) });
 
+export type ConfirmUploadInput = {
+  ocrJobId: string;
+  sizeBytes: number;
+  totalPages: number;
+};
+
+export type ReserveUploadInput = {
+  ocrJobId: string;
+  sizeBytes: number;
+  uploadKey: string;
+};
+
 const userStub = () => env.USER_DO.get(env.USER_DO.idFromName(DEFAULT_USER_ID));
 
 const fail = async (ocrJobId: string, key: string, message: string, withDelete: boolean) => {

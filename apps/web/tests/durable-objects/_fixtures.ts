@@ -22,7 +22,7 @@ export type UserStoreFixtures = {
   mdPage: (jobId: string, pageNumber: number) => MdPageDbRow;
   ocrJob: (id?: string) => OcrJobDbRow;
   seedReserved: (id?: string, size?: number, key?: string, at?: number) => void;
-  seedTranscribing: (id?: string, pages?: number) => Promise<void>;
+  seedTranscribing: (id?: string, pages?: number) => void;
   store: UserStore;
 };
 
@@ -53,10 +53,10 @@ export const it = base.extend<UserStoreFixtures>({
     });
   },
   seedTranscribing: async ({ seedReserved, store }, use) => {
-    await use(async (id = 'j1', pages = 1) => {
+    await use((id = 'j1', pages = 1) => {
       seedReserved(id);
-      await store.confirmUpload({ ocrJobId: id, sizeBytes: 100, totalPages: pages }, UPLOAD_AT);
-      await store.setPipelineId(id, `pipe-${id}`, START_AT);
+      store.confirmUpload({ ocrJobId: id, sizeBytes: 100, totalPages: pages }, UPLOAD_AT);
+      store.setPipelineId(id, `pipe-${id}`, START_AT);
     });
   },
   store: async ({ db }, use) => {

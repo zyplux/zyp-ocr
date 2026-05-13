@@ -6,7 +6,6 @@ import { Hono } from 'hono';
 import { createFactory } from 'hono/factory';
 import { z } from 'zod';
 
-import type { ApplyResultInput } from '~/durable-objects/user-do';
 import type { ResultClaims } from '~/lib/result-token';
 
 import { DEFAULT_USER_ID, MAX_PAGES } from '~/constants';
@@ -16,6 +15,15 @@ import { verifyResultToken } from '~/lib/result-token';
 import { blob } from '~/lib/s3';
 
 export { UserDO } from '~/durable-objects/user-do';
+
+export type TranscriptionUpdate = {
+  error?: string;
+  markdownKey?: string;
+  ocrJobId: string;
+  pageNumber?: number;
+  resultId: string;
+  status: 'done' | 'failed';
+};
 
 const startHandler = createStartHandler(defaultStreamHandler);
 
@@ -65,7 +73,7 @@ const transcriptionResultHandlers = factory.createHandlers(
     if (data.ocr_job_id !== claims.ocrJobId) {
       return c.json({ error: 'token / payload ocr job mismatch' }, 403);
     }
-    const input: ApplyResultInput = {
+    const input: TranscriptionUpdate = {
       ocrJobId: data.ocr_job_id,
       resultId: data.result_id,
       status: data.status,
@@ -73,7 +81,7 @@ const transcriptionResultHandlers = factory.createHandlers(
       ...(data.markdown_key && { markdownKey: data.markdown_key }),
       ...(data.error && { error: data.error }),
     };
-    await userStub(c.env).applyResult(input);
+    await userStub(c.env).onTranscriptionUpdate(input);
     return c.json({ ok: true });
   },
 );
