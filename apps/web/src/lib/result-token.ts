@@ -3,7 +3,7 @@
 // Format: base64url(JSON(claims)) "." base64url(HMAC-SHA256(claims))
 // See plan/totvibe-ocr.md §6 ("Signed result tokens").
 
-import { z } from 'zod';
+import * as z from 'zod';
 
 export const ResultClaims = z.object({
   exp: z.number(),

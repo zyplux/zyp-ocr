@@ -8,7 +8,7 @@
 // 0.45 + TS 6 setup. If that gets fixed upstream, switch to
 // `createSelectSchema(table).extend({ status })`.
 
-import { z } from 'zod';
+import * as z from 'zod';
 
 const MdPageRowSchema = z.object({
   completed_at: z.number().nullable(),

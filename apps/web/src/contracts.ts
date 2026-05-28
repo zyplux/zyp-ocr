@@ -2,7 +2,7 @@
 // Source of truth: services/transcription-api/src/transcription_api/schemas.py
 // Run `just codegen` to regenerate.
 
-import { z } from 'zod';
+import * as z from 'zod';
 
 export const TranscriptionSubmission = z.object({
   ocr_job_id: z.string(),

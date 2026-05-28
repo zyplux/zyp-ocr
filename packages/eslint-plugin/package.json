@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@typescript-eslint/utils": "catalog:",
-    "eslint-plugin-prefer-arrow-functions": "^3.9.1"
+    "eslint-plugin-prefer-arrow-functions": "catalog:"
   },
   "peerDependencies": {
     "eslint": "catalog:",
@@ -25,6 +25,7 @@
     "@types/node": "catalog:",
     "@typescript-eslint/rule-tester": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "zod": "catalog:"
   }
 }

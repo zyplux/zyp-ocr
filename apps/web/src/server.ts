@@ -4,7 +4,7 @@ import { zValidator } from '@hono/zod-validator';
 import { createStartHandler, defaultStreamHandler } from '@tanstack/react-start/server';
 import { Hono } from 'hono';
 import { createFactory } from 'hono/factory';
-import { z } from 'zod';
+import * as z from 'zod';
 
 import type { ResultClaims } from '~/lib/result-token';
 

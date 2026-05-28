@@ -4,8 +4,7 @@ Scanned PDFs in, markdown out, page-by-page via a TanStack DB live collection ba
 
 ## Prerequisites
 
-- Node 24 (`.nvmrc`)
-- pnpm 10.26.1 (via corepack: `corepack enable && corepack prepare pnpm@10.26.1 --activate`)
+- Bun 1.3+ (`curl -fsSL https://bun.sh/install | bash`)
 - Python 3.14 (`.python-version`)
 - uv 0.11+
 - podman + podman-compose
@@ -14,9 +13,9 @@ Scanned PDFs in, markdown out, page-by-page via a TanStack DB live collection ba
 ## Quick start
 
 ```bash
-just install                                  # pnpm install + uv sync + image builds
-pnpm --filter @totvibe/web build              # produces apps/web/dist (wrangler dev consumes it)
-just dev-mock                                 # bring up the stack without GPU
+just install        # bun install + uv sync + git hooks
+just build          # produces apps/web/dist (wrangler dev consumes it)
+just up mock        # bring up the stack without GPU
 ```
 
 Open `http://localhost:8787`.
@@ -30,18 +29,20 @@ TOTVIBE_E2E=1 uv run --active pytest -k e2e
 ## Common recipes
 
 ```bash
-just dev         # full stack including vLLM (GPU required)
+just up          # full stack including vLLM (GPU required)
+just up mock     # stack without GPU (vLLM is mocked)
 just down        # stop the stack
+just build       # rebuild apps/web/dist
 just test        # vitest + pytest
-just lint        # ruff + eslint
+just lint        # eslint + ruff + rumdl
 ```
 
 ## First-run notes
 
-- TanStack Start generates `apps/web/src/routeTree.gen.ts` on first `pnpm dev` /
-  `pnpm build`. Until that file exists, `pnpm typecheck` reports two errors on the
+- TanStack Start generates `apps/web/src/routeTree.gen.ts` on first `bun run dev` /
+  `bun run build`. Until that file exists, `bun run typecheck` reports two errors on the
   `createFileRoute(...)` calls — they go away after the first dev run.
-- Run `pnpm --filter @totvibe/web wrangler:types` after editing `wrangler.jsonc`
+- Run `bun --filter @totvibe/web wrangler:types` after editing `wrangler.jsonc`
   to refresh `worker-configuration.d.ts`.
 - `just install` also installs all git hooks (lefthook).
 - Drop a PEP 723 script anywhere in the repo with one of two suffixes and it's

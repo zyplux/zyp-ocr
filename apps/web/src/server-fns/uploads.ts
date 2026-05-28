@@ -1,7 +1,7 @@
 import { createServerFn } from '@tanstack/react-start';
 import { env } from 'cloudflare:workers';
 import { ulid } from 'ulid';
-import { z } from 'zod';
+import * as z from 'zod';
 
 import { DEFAULT_USER_ID, MAX_PAGES, MAX_PDF_BYTES, MAX_PDF_MB } from '~/constants';
 import { estimatePageCount } from '~/lib/pdf-pages';

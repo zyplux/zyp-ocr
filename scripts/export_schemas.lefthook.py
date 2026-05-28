@@ -162,7 +162,7 @@ def main() -> int:
         "// GENERATED FILE — do not edit by hand.\n"
         "// Source of truth: services/transcription-api/src/transcription_api/schemas.py\n"
         "// Run `just codegen` to regenerate.\n\n"
-        "import { z } from 'zod';\n\n"
+        "import * as z from 'zod';\n\n"
     )
     body = "\n".join(emit_models(module)).rstrip() + "\n"
     OUTPUT_TS.parent.mkdir(parents=True, exist_ok=True)

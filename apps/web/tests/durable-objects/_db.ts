@@ -1,7 +1,7 @@
-import { drizzle, type NodeSQLiteDatabase } from 'drizzle-orm/node-sqlite';
+import { Database } from 'bun:sqlite';
+import { drizzle, type SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 
 import * as schema from '~/durable-objects/schema';
 
@@ -22,10 +22,10 @@ const readAllMigrationSql = () =>
 
 const MIGRATION_SQL = readAllMigrationSql();
 
-export type TestDb = NodeSQLiteDatabase<typeof schema>;
+export type TestDb = SQLiteBunDatabase<typeof schema>;
 
 export const createTestDb = () => {
-  const client = new DatabaseSync(':memory:');
-  client.exec(MIGRATION_SQL);
+  const client = new Database(':memory:');
+  client.run(MIGRATION_SQL);
   return drizzle({ client, schema });
 };

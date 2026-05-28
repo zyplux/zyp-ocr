@@ -13,13 +13,12 @@ import unicorn from 'eslint-plugin-unicorn';
 import tseslint from 'typescript-eslint';
 
 const catalogVersion = (pkg: string) => {
-  const workspace = readFileSync(fileURLToPath(new URL('pnpm-workspace.yaml', import.meta.url)), 'utf8');
+  const manifest = readFileSync(fileURLToPath(new URL('package.json', import.meta.url)), 'utf8');
   const pattern = new RegExp(
-    String.raw`^\s*['"]?${pkg.replaceAll(/[/@]/g, String.raw`\$&`)}['"]?:\s*\^?([\d.]+)\s*$`,
-    'm',
+    String.raw`["']${pkg.replaceAll(/[/@]/g, String.raw`\$&`)}["']\s*:\s*["']\^?([\d.]+)["']`,
   );
-  const match = pattern.exec(workspace);
-  if (!match?.[1]) throw new Error(`pnpm-workspace.yaml: catalog entry for "${pkg}" not found`);
+  const match = pattern.exec(manifest);
+  if (!match?.[1]) throw new Error(`package.json: catalog entry for "${pkg}" not found`);
   return match[1];
 };
 
@@ -131,8 +130,5 @@ export default defineConfig(
   unicornConfig,
   tanstackRoutesConfig,
   totvibeConfig,
-  // Disables stylistic rules that overlap with prettier (we run prettier
-  // separately via `pnpm format`). Must come last so it overrides preceding
-  // configs. Source: https://github.com/prettier/eslint-config-prettier
   prettierConfig,
 );

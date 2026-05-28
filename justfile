@@ -6,6 +6,7 @@ alias tc := typecheck
 alias t := test
 alias i := install
 alias u := upgrade
+alias b := build
 
 compose := "podman compose -f infra/compose.yaml"
 dev_stack := compose + " -f infra/compose.dev.yaml"
@@ -17,14 +18,19 @@ default:
 
 # Install JS and Python dependencies + git hooks (images are built lazily by `just up`).
 install:
-    pnpm install
+    bun install
     uv sync --all-packages
     uv run lefthook install
 
-# Upgrade JS dependencies across the workspace. Pass -i/--interactive for the picker UI.
-[arg('interactive', short='i', long='interactive', value='i')]
-upgrade interactive='':
-    pnpm up -r{{ interactive }}
+# Upgrade JS dependencies across the workspace via ncu (catalog-aware). Pass -i for the interactive picker.
+[arg('flag', short='i', long='interactive', value='-i')]
+upgrade flag='-u':
+    bun run upgrade -- {{ flag }}
+    bun install
+
+# Build JS workspaces — produces apps/web/dist consumed by `wrangler dev`.
+build:
+    bun run build
 
 # Build images, start the stack detached, and wait until all services are healthy. mode: dev (default) | mock.
 up mode="dev":
@@ -52,39 +58,37 @@ clean:
     find . -type d -name .pytest_cache -prune -exec rm -rf {} +
     find . -type d -name .ruff_cache -prune -exec rm -rf {} +
 
+# Report unused files, dependencies, and exports across the JS workspace via knip.
+knip:
+    bun run knip
+
 # Auto-format JS/MD via prettier and Python via ruff.
 format:
-    pnpm exec prettier --write .
+    bunx prettier --write .
     uv run --active ruff format .
 
-# Type-check JS (root + all workspaces) and transcription-api Python; runs `knip` then `format` first (skip format with --check/-c).
-[arg('fix', short='c', long='check', value='')]
-typecheck fix='--fix': knip
-    {{ if fix == '--fix' { 'just format' } else { ':' } }}
-    pnpm typecheck
+# Type-check JS (root + all workspaces) and transcription-api Python; runs `knip` first.
+typecheck: knip
+    bun run typecheck
     uv run --active ty check services/transcription-api/src
 
 # Lint JS (eslint), Python (ruff), Markdown (rumdl) — autofix by default; runs `typecheck` first. --check/-c to check only.
 [arg('fix', short='c', long='check', value='')]
-lint fix='--fix': (typecheck fix)
-    pnpm {{ if fix == '--fix' { 'lint:fix' } else { 'lint' } }}
+lint fix='--fix': typecheck
+    bun run {{ if fix == '--fix' { 'lint:fix' } else { 'lint' } }}
     uv run --active ruff check {{ fix }} .
     rumdl check {{ fix }} .
 
-# Run all JS (workspace) and Python (pytest) unit tests; runs `lint` first. --check/-c to skip format and lint fixes.
+# Run all JS (workspace) and Python (pytest) unit tests; runs `lint` first. --check/-c to skip lint fixes.
 [arg('fix', short='c', long='check', value='')]
 test fix='--fix': (lint fix)
-    pnpm -r test
+    bun --filter '*' test
     uv run --active pytest
 
-# Run end-to-end Python tests (gated by TOTVIBE_E2E); runs `test` first. --check/-c to skip format and lint fixes.
+# Run end-to-end Python tests (gated by TOTVIBE_E2E); runs `test` first. --check/-c to skip lint fixes.
 [arg('fix', short='c', long='check', value='')]
 e2e fix='--fix': (test fix)
     TOTVIBE_E2E=1 uv run --active pytest -k e2e
-
-# Report unused files, dependencies, and exports across the JS workspace via knip.
-knip:
-    pnpm exec knip
 
 # Load fixture objects into the local MinIO bucket for development.
 seed-minio:
