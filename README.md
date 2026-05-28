@@ -35,6 +35,7 @@ just down        # stop the stack
 just build       # rebuild apps/web/dist
 just test        # vitest + pytest
 just lint        # eslint + ruff + rumdl
+just u -i        # interactive upgrade of catalog deps via ncu
 ```
 
 ## First-run notes

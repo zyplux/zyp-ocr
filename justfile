@@ -1,5 +1,5 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
-set dotenv-load := true
+set dotenv-load
 
 alias l := lint
 alias tc := typecheck
@@ -22,10 +22,9 @@ install:
     uv sync --all-packages
     uv run lefthook install
 
-# Upgrade JS dependencies across the workspace via ncu (catalog-aware). Pass -i for the interactive picker.
-[arg('flag', short='i', long='interactive', value='-i')]
-upgrade flag='-u':
-    bun run upgrade -- {{ flag }}
+# Upgrade JS dependencies across the workspace via ncu (catalog-aware). Forwards extra args to ncu (e.g. `just u -i`, `just u --target newest`).
+upgrade *args='-u':
+    bun run upgrade -- {{ args }}
     bun install
 
 # Build JS workspaces — produces apps/web/dist consumed by `wrangler dev`.
@@ -73,20 +72,20 @@ typecheck: knip
     uv run --active ty check services/transcription-api/src
 
 # Lint JS (eslint), Python (ruff), Markdown (rumdl) — autofix by default; runs `typecheck` first. --check/-c to check only.
-[arg('fix', short='c', long='check', value='')]
+[arg('fix', long='check', short='c', value='')]
 lint fix='--fix': typecheck
     bun run {{ if fix == '--fix' { 'lint:fix' } else { 'lint' } }}
     uv run --active ruff check {{ fix }} .
     rumdl check {{ fix }} .
 
 # Run all JS (workspace) and Python (pytest) unit tests; runs `lint` first. --check/-c to skip lint fixes.
-[arg('fix', short='c', long='check', value='')]
+[arg('fix', long='check', short='c', value='')]
 test fix='--fix': (lint fix)
     bun --filter '*' test
     uv run --active pytest
 
 # Run end-to-end Python tests (gated by TOTVIBE_E2E); runs `test` first. --check/-c to skip lint fixes.
-[arg('fix', short='c', long='check', value='')]
+[arg('fix', long='check', short='c', value='')]
 e2e fix='--fix': (test fix)
     TOTVIBE_E2E=1 uv run --active pytest -k e2e
 

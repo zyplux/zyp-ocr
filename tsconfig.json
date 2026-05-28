@@ -14,7 +14,7 @@
     "esModuleInterop": true,
     "noEmit": true,
     "resolveJsonModule": true,
-    "types": ["node"]
+    "types": ["bun-types"]
   },
   "include": ["eslint.config.ts", "prettier.config.ts"]
 }
