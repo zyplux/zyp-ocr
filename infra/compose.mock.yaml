@@ -1,5 +1,5 @@
-# Mock override: pipeline-api runs in --mock mode (no GPU, no vLLM).
-# Drops the vllm service entirely; pipeline-api Containerfile target=mock.
+# Mock override: transcription-api runs in --mock mode (no GPU, no vLLM).
+# Drops the vllm service entirely; transcription-api Containerfile target=mock.
 
 services:
   web:
@@ -8,31 +8,24 @@ services:
     volumes:
       - ../apps/web/src:/app/apps/web/src:Z
       - ../apps/web/wrangler.jsonc:/app/apps/web/wrangler.jsonc:Z
+      - ../apps/web/dist:/app/apps/web/dist:Z
       - wrangler-state:/app/apps/web/.wrangler
-    command:
-      - "pnpm"
-      - "--filter"
-      - "@totvibe/web"
-      - "wrangler"
-      - "dev"
-      - "--ip"
-      - "0.0.0.0"
-      - "--port"
-      - "8787"
+    command: ["bun", "run", "wrangler", "dev", "--ip", "0.0.0.0", "--port", "8787"]
+    tty: true
 
-  pipeline-api:
+  transcription-api:
     build:
       target: mock
     volumes:
-      - ../services/pipeline-api/src:/app/services/pipeline-api/src:Z
+      - ../services/transcription-api/src:/app/services/transcription-api/src:Z
     command:
       - "uv"
       - "run"
       - "--package"
-      - "pipeline-api"
+      - "transcription-api"
       - "python"
       - "-m"
-      - "pipeline_api"
+      - "transcription_api"
       - "--mock"
       - "--host"
       - "0.0.0.0"

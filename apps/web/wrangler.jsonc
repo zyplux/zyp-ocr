@@ -1,39 +1,38 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "totvibe-web",
-  "main": "./.output/server/index.mjs",
+  "main": "./src/server.ts",
   "compatibility_date": "2026-04-07",
   "compatibility_flags": ["nodejs_compat"],
-  "assets": {
-    "directory": "./.output/public"
-  },
   "observability": {
-    "enabled": true
+    "enabled": true,
   },
   "durable_objects": {
     "bindings": [
       {
         "name": "USER_DO",
-        "class_name": "UserDO"
-      }
-    ]
+        "class_name": "UserDO",
+      },
+    ],
   },
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["UserDO"]
-    }
+      "new_sqlite_classes": ["UserDO"],
+    },
   ],
   "vars": {
     "PUBLIC_BASE": "http://localhost:8787",
+    "WORKER_INTERNAL_BASE": "http://web:8787",
     "S3_ENDPOINT": "http://minio:9000",
+    "S3_PUBLIC_ENDPOINT": "http://localhost:9000",
     "S3_REGION": "auto",
     "S3_BUCKET": "totvibe",
-    "PIPELINE_BASE": "http://pipeline-api:8000",
-    "RECONCILE_TIMEOUT_SECONDS": "3600"
-  }
-  // Secrets (set via `wrangler secret put` in prod):
-  //   CALLBACK_HMAC_SECRET
-  //   S3_ACCESS_KEY_ID
-  //   S3_SECRET_ACCESS_KEY
+    "TRANSCRIPTION_BASE": "http://transcription-api:8000",
+    "RECONCILE_TIMEOUT_SECONDS": "3600",
+    // Dev-only defaults — overridden in prod via `wrangler secret put`.
+    "RESULT_HMAC_SECRET": "dev-only-hmac-secret-change-me",
+    "S3_ACCESS_KEY_ID": "minioadmin",
+    "S3_SECRET_ACCESS_KEY": "minioadmin",
+  },
 }

@@ -26,6 +26,7 @@ dev = [
     {include-group = "lint"},
     {include-group = "type"},
     {include-group = "test"},
+    "lefthook>=2.1.6",
 ]
 
 [tool.ruff]

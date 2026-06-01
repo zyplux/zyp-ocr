@@ -1,0 +1,11 @@
+# Markdown is managed by rumdl
+*.md
+*.mdx
+
+*.yaml
+*.yml
+
+dist/
+build/
+.wrangler/
+.cache/

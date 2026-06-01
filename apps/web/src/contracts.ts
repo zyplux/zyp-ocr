@@ -1,28 +1,28 @@
 // GENERATED FILE — do not edit by hand.
-// Source of truth: services/pipeline-api/src/pipeline_api/schemas.py
+// Source of truth: services/transcription-api/src/transcription_api/schemas.py
 // Run `just codegen` to regenerate.
 
-import { z } from "zod";
+import * as z from 'zod';
 
-export const PipelineSubmission = z.object({
-  "job_id": z.string(),
-  "source_key": z.string(),
-  "callback_url": z.string(),
-  "callback_token": z.string()
+export const TranscriptionSubmission = z.object({
+  ocr_job_id: z.string(),
+  result_token: z.string(),
+  result_url: z.string(),
+  upload_key: z.string(),
 });
-export type PipelineSubmission = z.infer<typeof PipelineSubmission>;
+export type TranscriptionSubmission = z.infer<typeof TranscriptionSubmission>;
 
-export const PipelineSubmissionAck = z.object({
-  "pipeline_id": z.string()
+export const TranscriptionSubmissionAck = z.object({
+  pipeline_id: z.string(),
 });
-export type PipelineSubmissionAck = z.infer<typeof PipelineSubmissionAck>;
+export type TranscriptionSubmissionAck = z.infer<typeof TranscriptionSubmissionAck>;
 
-export const PipelineCallback = z.object({
-  "callback_id": z.string(),
-  "job_id": z.string(),
-  "page_number": z.union([z.number().int(), z.null()]).optional(),
-  "status": z.enum(["done", "failed"]),
-  "markdown_key": z.union([z.string(), z.null()]).optional(),
-  "error": z.union([z.string(), z.null()]).optional()
+export const TranscriptionResult = z.object({
+  error: z.union([z.string(), z.null()]).optional(),
+  markdown_key: z.union([z.string(), z.null()]).optional(),
+  ocr_job_id: z.string(),
+  page_number: z.union([z.number().int(), z.null()]).optional(),
+  result_id: z.string(),
+  status: z.enum(['done', 'failed']),
 });
-export type PipelineCallback = z.infer<typeof PipelineCallback>;
+export type TranscriptionResult = z.infer<typeof TranscriptionResult>;

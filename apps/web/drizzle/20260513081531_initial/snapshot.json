@@ -1,0 +1,318 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "id": "ad8b5a51-4222-43ca-b154-3390af04a975",
+  "prevIds": ["00000000-0000-0000-0000-000000000000"],
+  "ddl": [
+    {
+      "name": "md_pages",
+      "entityType": "tables"
+    },
+    {
+      "name": "ocr_jobs",
+      "entityType": "tables"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "completed_at",
+      "entityType": "columns",
+      "table": "md_pages"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "md_pages"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "error",
+      "entityType": "columns",
+      "table": "md_pages"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "markdown_key",
+      "entityType": "columns",
+      "table": "md_pages"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "ocr_job_id",
+      "entityType": "columns",
+      "table": "md_pages"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "page_number",
+      "entityType": "columns",
+      "table": "md_pages"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "started_at",
+      "entityType": "columns",
+      "table": "md_pages"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": {
+        "as": "(CASE\n          WHEN \"error\" IS NOT NULL THEN 'failed'\n          WHEN \"completed_at\" IS NOT NULL THEN 'done'\n          ELSE 'transcribing'\n        END)",
+        "type": "virtual"
+      },
+      "name": "status",
+      "entityType": "columns",
+      "table": "md_pages"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "completed_at",
+      "entityType": "columns",
+      "table": "ocr_jobs"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "ocr_jobs"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "error",
+      "entityType": "columns",
+      "table": "ocr_jobs"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "ocr_jobs"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "pipeline_id",
+      "entityType": "columns",
+      "table": "ocr_jobs"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "size_bytes",
+      "entityType": "columns",
+      "table": "ocr_jobs"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "started_at",
+      "entityType": "columns",
+      "table": "ocr_jobs"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": {
+        "as": "(CASE\n          WHEN \"error\" IS NOT NULL THEN 'failed'\n          WHEN \"completed_at\" IS NOT NULL THEN 'done'\n          WHEN \"started_at\" IS NOT NULL THEN 'transcribing'\n          WHEN \"total_pages\" > 0 THEN 'uploaded'\n          ELSE 'awaiting_upload'\n        END)",
+        "type": "virtual"
+      },
+      "name": "status",
+      "entityType": "columns",
+      "table": "ocr_jobs"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "total_pages",
+      "entityType": "columns",
+      "table": "ocr_jobs"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "upload_key",
+      "entityType": "columns",
+      "table": "ocr_jobs"
+    },
+    {
+      "columns": ["ocr_job_id"],
+      "tableTo": "ocr_jobs",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "nameExplicit": false,
+      "name": "fk_md_pages_ocr_job_id_ocr_jobs_id_fk",
+      "entityType": "fks",
+      "table": "md_pages"
+    },
+    {
+      "columns": ["ocr_job_id", "page_number"],
+      "nameExplicit": false,
+      "name": "md_pages_pk",
+      "entityType": "pks",
+      "table": "md_pages"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "ocr_jobs_pk",
+      "table": "ocr_jobs",
+      "entityType": "pks"
+    },
+    {
+      "value": "\"page_number\" > 0",
+      "name": "md_pages_page_number_positive",
+      "entityType": "checks",
+      "table": "md_pages"
+    },
+    {
+      "value": "\"created_at\" > 0",
+      "name": "md_pages_created_at_positive",
+      "entityType": "checks",
+      "table": "md_pages"
+    },
+    {
+      "value": "\"started_at\" IS NULL OR \"started_at\" >= \"created_at\"",
+      "name": "md_pages_started_at_after_created",
+      "entityType": "checks",
+      "table": "md_pages"
+    },
+    {
+      "value": "\"completed_at\" IS NULL OR \"completed_at\" >= \"created_at\"",
+      "name": "md_pages_completed_at_after_created",
+      "entityType": "checks",
+      "table": "md_pages"
+    },
+    {
+      "value": "\"error\" IS NULL OR length(\"error\") > 0",
+      "name": "md_pages_error_nonempty",
+      "entityType": "checks",
+      "table": "md_pages"
+    },
+    {
+      "value": "\"markdown_key\" IS NULL OR (\"completed_at\" IS NOT NULL AND \"error\" IS NULL)",
+      "name": "md_pages_markdown_requires_done",
+      "entityType": "checks",
+      "table": "md_pages"
+    },
+    {
+      "value": "\"size_bytes\" >= 0",
+      "name": "ocr_jobs_size_bytes_nonneg",
+      "entityType": "checks",
+      "table": "ocr_jobs"
+    },
+    {
+      "value": "\"total_pages\" >= 0",
+      "name": "ocr_jobs_total_pages_nonneg",
+      "entityType": "checks",
+      "table": "ocr_jobs"
+    },
+    {
+      "value": "\"created_at\" > 0",
+      "name": "ocr_jobs_created_at_positive",
+      "entityType": "checks",
+      "table": "ocr_jobs"
+    },
+    {
+      "value": "\"started_at\" IS NULL OR \"started_at\" >= \"created_at\"",
+      "name": "ocr_jobs_started_at_after_created",
+      "entityType": "checks",
+      "table": "ocr_jobs"
+    },
+    {
+      "value": "\"completed_at\" IS NULL OR \"completed_at\" >= \"created_at\"",
+      "name": "ocr_jobs_completed_at_after_created",
+      "entityType": "checks",
+      "table": "ocr_jobs"
+    },
+    {
+      "value": "\"completed_at\" IS NULL OR \"started_at\" IS NOT NULL OR \"error\" IS NOT NULL",
+      "name": "ocr_jobs_clean_done_requires_started",
+      "entityType": "checks",
+      "table": "ocr_jobs"
+    },
+    {
+      "value": "(\"pipeline_id\" IS NULL) = (\"started_at\" IS NULL)",
+      "name": "ocr_jobs_pipeline_id_pairs_with_started_at",
+      "entityType": "checks",
+      "table": "ocr_jobs"
+    },
+    {
+      "value": "\"started_at\" IS NULL OR \"total_pages\" > 0",
+      "name": "ocr_jobs_started_requires_pages",
+      "entityType": "checks",
+      "table": "ocr_jobs"
+    },
+    {
+      "value": "\"error\" IS NULL OR length(\"error\") > 0",
+      "name": "ocr_jobs_error_nonempty",
+      "entityType": "checks",
+      "table": "ocr_jobs"
+    }
+  ],
+  "renames": []
+}

@@ -4,22 +4,38 @@ __pycache__/
 .venv/
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
+.tox/
+*.egg-info/
+htmlcov/
+.coverage
+.coverage.*
 
-# Node / Vite / Wrangler
+# Node / Vite / Wrangler / TanStack Start
 node_modules/
 dist/
 .wrangler/
+.tanstack/
+.output/
+.nitro/
+.vinxi/
+.eslintcache
+coverage/
+.nyc_output/
+*.tsbuildinfo
 
 # Markdown linter
 .rumdl_cache/
 
 # Generated
 apps/web/src/routeTree.gen.ts
+apps/web/drizzle/migrations.js
 
 # Env
 .env
 .env.*
 !.env.example
+.dev.vars
 
 # OS
 .DS_Store

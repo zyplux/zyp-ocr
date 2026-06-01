@@ -1,0 +1,4 @@
+pre-commit:
+  commands:
+    codegen:
+      run: uv run scripts/codegen_runner.py lefthook
