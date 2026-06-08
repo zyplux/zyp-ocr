@@ -14,9 +14,7 @@ import tseslint from 'typescript-eslint';
 
 const catalogVersion = (pkg: string) => {
   const manifest = readFileSync(fileURLToPath(new URL('package.json', import.meta.url)), 'utf8');
-  const pattern = new RegExp(
-    String.raw`["']${pkg.replaceAll(/[/@]/g, String.raw`\$&`)}["']\s*:\s*["']\^?([\d.]+)["']`,
-  );
+  const pattern = new RegExp(String.raw`["']${pkg.replaceAll(/[/@]/g, String.raw`\$&`)}["']\s*:\s*["']\^?([\d.]+)["']`);
   const match = pattern.exec(manifest);
   if (!match?.[1]) throw new Error(`package.json: catalog entry for "${pkg}" not found`);
   return match[1];

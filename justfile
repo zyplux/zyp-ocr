@@ -1,12 +1,15 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 set dotenv-load
 
-alias l := lint
-alias tc := typecheck
-alias t := test
 alias i := install
-alias u := upgrade
+alias k := knip
+alias tc := typecheck
+alias l := lint
+alias t := test
+alias c := check
 alias b := build
+alias u := upgrade
+alias ui := upgrade-interactive
 
 compose := "podman compose -f infra/compose.yaml"
 dev_stack := compose + " -f infra/compose.dev.yaml"
@@ -19,17 +22,8 @@ default:
 # Install JS and Python dependencies + git hooks (images are built lazily by `just up`).
 install:
     bun install
-    uv sync --all-packages
+    uv sync --all-packages --all-groups
     uv run lefthook install
-
-# Upgrade JS dependencies across the workspace via ncu (catalog-aware). Forwards extra args to ncu (e.g. `just u -i`, `just u --target newest`).
-upgrade *args='-u':
-    bun run upgrade -- {{ args }}
-    bun install
-
-# Build JS workspaces — produces apps/web/dist consumed by `wrangler dev`.
-build:
-    bun run build
 
 # Build images, start the stack detached, and wait until all services are healthy. mode: dev (default) | mock.
 up mode="dev":
@@ -48,6 +42,57 @@ logs service="":
 ps:
     {{ compose }} ps
 
+# Report unused files, dependencies, and exports across the JS workspace via knip.
+knip:
+    bun run knip
+
+# Type-check JS (root + all workspaces) and transcription-api Python.
+typecheck:
+    bun run typecheck
+    uv run --active pyrefly check services/transcription-api/src
+
+# Lint and format with autofix: JS (eslint --fix + prettier --write), Python (ruff check --fix + format), Markdown (rumdl --fix).
+lint:
+    bun run lint:fix
+    bunx prettier --write .
+    uv run --active ruff check --fix .
+    uv run --active ruff format .
+    rumdl check --fix .
+
+# Run all JS (workspace) and Python (pytest) unit tests.
+test:
+    bun --filter '*' test
+    uv run --active pytest
+
+# Full gate: install, knip, typecheck, lint, test — autofix throughout.
+check: install knip typecheck lint test
+
+# Build JS workspaces — produces apps/web/dist consumed by `wrangler dev`.
+build:
+    bun run build
+
+# Run end-to-end Python tests (gated by TOTVIBE_E2E).
+e2e:
+    TOTVIBE_E2E=1 uv run --active pytest -k e2e
+
+# Auto-format JS/MD via prettier and Python via ruff.
+format:
+    bunx prettier --write .
+    uv run --active ruff format .
+
+# Upgrade JS dependencies across the workspace via ncu (catalog-aware). Forwards extra args to ncu (e.g. `just u -i`, `just u --target newest`).
+upgrade *args='':
+    bun run upgrade -- {{ args }}
+
+# Interactively select and apply upgrades, then reinstall
+upgrade-interactive:
+    bun run upgrade -- -i
+    bun install
+
+# Load fixture objects into the local MinIO bucket for development.
+seed-minio:
+    uv run scripts/seed_minio.py
+
 # Tear down the stack with volumes and wipe local deps and tool caches.
 clean:
     {{ compose }} down -v
@@ -56,39 +101,3 @@ clean:
     find . -type d -name __pycache__ -prune -exec rm -rf {} +
     find . -type d -name .pytest_cache -prune -exec rm -rf {} +
     find . -type d -name .ruff_cache -prune -exec rm -rf {} +
-
-# Report unused files, dependencies, and exports across the JS workspace via knip.
-knip:
-    bun run knip
-
-# Auto-format JS/MD via prettier and Python via ruff.
-format:
-    bunx prettier --write .
-    uv run --active ruff format .
-
-# Type-check JS (root + all workspaces) and transcription-api Python; runs `knip` first.
-typecheck: knip
-    bun run typecheck
-    uv run --active ty check services/transcription-api/src
-
-# Lint JS (eslint), Python (ruff), Markdown (rumdl) — autofix by default; runs `typecheck` first. --check/-c to check only.
-[arg('fix', long='check', short='c', value='')]
-lint fix='--fix': typecheck
-    bun run {{ if fix == '--fix' { 'lint:fix' } else { 'lint' } }}
-    uv run --active ruff check {{ fix }} .
-    rumdl check {{ fix }} .
-
-# Run all JS (workspace) and Python (pytest) unit tests; runs `lint` first. --check/-c to skip lint fixes.
-[arg('fix', long='check', short='c', value='')]
-test fix='--fix': (lint fix)
-    bun --filter '*' test
-    uv run --active pytest
-
-# Run end-to-end Python tests (gated by TOTVIBE_E2E); runs `test` first. --check/-c to skip lint fixes.
-[arg('fix', long='check', short='c', value='')]
-e2e fix='--fix': (test fix)
-    TOTVIBE_E2E=1 uv run --active pytest -k e2e
-
-# Load fixture objects into the local MinIO bucket for development.
-seed-minio:
-    uv run scripts/seed_minio.py

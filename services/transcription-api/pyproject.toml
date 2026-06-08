@@ -34,3 +34,7 @@ packages = ["src/transcription_api"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.pyrefly]
+project-includes = ["src"]
+python-interpreter-path = "../../.venv/bin/python3"

@@ -7,7 +7,10 @@
     "bun": ">=1.3.0"
   },
   "workspaces": {
-    "packages": ["apps/*", "packages/*"],
+    "packages": [
+      "apps/*",
+      "packages/*"
+    ],
     "catalog": {
       "@cloudflare/vite-plugin": "^1.39.0",
       "@cloudflare/workers-types": "^4.20260528.1",
@@ -51,7 +54,7 @@
     }
   },
   "scripts": {
-    "knip": "knip",
+    "knip": "knip-bun",
     "format": "prettier --write .",
     "typecheck": "tsc -p . && bun --filter '*' typecheck",
     "lint": "eslint .",
