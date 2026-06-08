@@ -64,8 +64,8 @@ test:
     bun --filter '*' test
     uv run --active pytest
 
-# Full gate: install, knip, typecheck, lint, test — autofix throughout.
-check: install knip typecheck lint test
+# Full gate: install, build (generates routeTree.gen.ts), knip, typecheck, lint, test — autofix throughout.
+check: install build knip typecheck lint test
 
 # Build JS workspaces — produces apps/web/dist consumed by `wrangler dev`.
 build:

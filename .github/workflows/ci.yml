@@ -27,6 +27,7 @@ jobs:
           enable-cache: true
       - run: bun install --frozen-lockfile
       - run: uv sync --all-packages --all-groups
+      - run: bun run build
       - run: bun run knip
       - run: bun run typecheck
       - run: uv run --no-sync pyrefly check services/transcription-api/src
@@ -34,7 +35,6 @@ jobs:
       - run: bunx prettier --check .
       - run: uv run --no-sync ruff check
       - run: uv run --no-sync ruff format --check
-      - run: bun run build
       - run: bun run test
       - run: uv run --no-sync pytest
 
