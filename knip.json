@@ -4,6 +4,9 @@
     "apps/web": {
       "entry": ["src/router.tsx", "src/routes/**/*.{ts,tsx}", "worker-configuration.d.ts"],
       "ignoreDependencies": ["cloudflare"]
+    },
+    "tests": {
+      "entry": ["src/**/*.test.ts"]
     }
   }
 }

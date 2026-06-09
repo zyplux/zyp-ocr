@@ -9,8 +9,8 @@
     "deploy": "vite build && wrangler deploy",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
-    "test": "vitest run --config vitest.config.ts",
-    "test:watch": "vitest --config vitest.config.ts",
+    "test": "bun --bun vitest run --config vitest.config.ts",
+    "test:watch": "bun --bun vitest --config vitest.config.ts",
     "wrangler:types": "wrangler types"
   },
   "dependencies": {

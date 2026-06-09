@@ -23,6 +23,7 @@ dist/
 coverage/
 .nyc_output/
 *.tsbuildinfo
+.tsbuild/
 
 # Markdown linter
 .rumdl_cache/

@@ -1,0 +1,17 @@
+{
+  "name": "@totvibe/tests",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -b",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@totvibe/tsconfig": "workspace:*",
+    "bun-types": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  }
+}
