@@ -1,0 +1,13 @@
+{
+  "name": "@totvibe/tsconfig",
+  "version": "0.1.0",
+  "private": true,
+  "files": [
+    "base.json",
+    "bun.json",
+    "web.json"
+  ],
+  "dependencies": {
+    "react": "catalog:"
+  }
+}

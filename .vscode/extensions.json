@@ -1,5 +1,3 @@
 {
-    "recommendations": [
-        "webpro.vscode-knip"
-    ]
+  "recommendations": ["webpro.vscode-knip"]
 }
