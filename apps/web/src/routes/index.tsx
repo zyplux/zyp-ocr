@@ -6,6 +6,8 @@ import { ocrJobsCollection } from '~/client/ocr-jobs-collection';
 import { getMessage } from '~/lib/error';
 import { confirmUpload, reserveUpload } from '~/server-fns/uploads';
 
+const BUSY_OPACITY = 0.6;
+
 const HomePage = () => {
   const router = useRouter();
   const { data: ocrJobs } = useLiveQuery(q => q.from({ j: ocrJobsCollection }));
@@ -42,7 +44,7 @@ const HomePage = () => {
 
   return (
     <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>
-      <h1>totvibe-ocr</h1>
+      <h1>zyp-ocr</h1>
       <p>Drop a scanned PDF to get markdown back, page-by-page.</p>
 
       <div
@@ -53,7 +55,7 @@ const HomePage = () => {
         style={{
           border: '2px dashed #888',
           marginBottom: '1rem',
-          opacity: busy ? 0.6 : 1,
+          opacity: busy ? BUSY_OPACITY : 1,
           padding: '2rem',
           textAlign: 'center',
         }}

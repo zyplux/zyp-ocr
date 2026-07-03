@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from typing import TYPE_CHECKING
 
-from .schemas import TranscriptionResult
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
+    from .schemas import TranscriptionResult
 
 
-async def run_ocr(_pdf_path: str, _ocr_job_id: str) -> AsyncIterator[TranscriptionResult]:
-    """Run glmocr page-by-page and yield per-page completion records."""
+def run_ocr(_pdf_path: str, _ocr_job_id: str) -> AsyncIterator[TranscriptionResult]:
+    """Stub for the real glmocr pipeline: always raises NotImplementedError.
+
+    `_ocr_with_fallback` in routes.py catches it and emits a single failed page.
+    The real implementation will run glmocr page-by-page and yield per-page
+    completion records.
+    """
     raise NotImplementedError
-    if False:  # pragma: no cover
-        yield  # type: ignore[misc]

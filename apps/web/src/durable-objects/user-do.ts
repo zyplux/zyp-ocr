@@ -8,7 +8,7 @@ import type { TranscriptionUpdate } from '~/server';
 import type { ConfirmUploadInput, ReserveUploadInput } from '~/server-fns/uploads';
 
 import { DEFAULT_RECONCILE_TIMEOUT_SECONDS, DEFAULT_USER_ID, MAX_INFLIGHT_JOBS, TOKEN_TTL_SECONDS } from '~/constants';
-import { TranscriptionSubmission, TranscriptionSubmissionAck } from '~/contracts';
+import { type TranscriptionSubmission, TranscriptionSubmissionAckSchema } from '~/contracts';
 import migrations from '~/durable-objects/migrations';
 import * as schema from '~/durable-objects/schema';
 import { UserStore } from '~/durable-objects/user-store';
@@ -17,10 +17,37 @@ import { type ResultClaims, signResultToken } from '~/lib/result-token';
 import { blob } from '~/lib/s3';
 
 const PAGES_FAILED_REASON = 'one or more pages failed';
+const MILLISECONDS_PER_SECOND = 1000;
 
 const sseEncoder = new TextEncoder();
 const omitNulls = (_: string, value: unknown) => (value === null ? undefined : value);
 const formatSseEvent = (delta: Delta) => sseEncoder.encode(`data: ${JSON.stringify(delta, omitNulls)}\n\n`);
+
+type SubscriberWriters = Map<string, WritableStreamDefaultWriter<Uint8Array>>;
+
+const writeToSubscriber = async (subscribers: SubscriberWriters, id: string, payload: Uint8Array) => {
+  const writer = subscribers.get(id);
+  if (!writer) return;
+  try {
+    await writer.write(payload);
+  } catch {
+    subscribers.delete(id);
+  }
+};
+
+const broadcast = (subscribers: SubscriberWriters, delta: Delta) => {
+  if (subscribers.size === 0) return;
+  const payload = formatSseEvent(delta);
+  for (const id of subscribers.keys()) {
+    void writeToSubscriber(subscribers, id, payload);
+  }
+};
+
+const reconcileTimeoutMs = ({ RECONCILE_TIMEOUT_SECONDS: configuredSeconds }: Env) => {
+  const seconds = Number(configuredSeconds);
+  const timeoutSeconds = Number.isFinite(seconds) && seconds > 0 ? seconds : DEFAULT_RECONCILE_TIMEOUT_SECONDS;
+  return timeoutSeconds * MILLISECONDS_PER_SECOND;
+};
 
 export class UserDO extends DurableObject<Env> {
   private store: UserStore;
@@ -38,7 +65,7 @@ export class UserDO extends DurableObject<Env> {
 
   override async alarm() {
     const now = Date.now();
-    const cutoff = now - this.reconcileTimeoutMs();
+    const cutoff = now - reconcileTimeoutMs(this.env);
     const stale = await this.store.findStaleJobs(cutoff);
     for (const ocrJob of stale) {
       const isAwaitingUpload = ocrJob.total_pages === 0 && ocrJob.started_at === null;
@@ -50,16 +77,16 @@ export class UserDO extends DurableObject<Env> {
         }
       }
       const failed = this.store.failJob(ocrJob.id, isAwaitingUpload ? 'upload abandoned' : 'timeout', now);
-      if (failed) this.broadcast(failed);
+      if (failed) broadcast(this.subscribers, failed);
     }
     if ((await this.store.countInflight()) > 0) {
-      await this.ctx.storage.setAlarm(now + this.reconcileTimeoutMs());
+      await this.ctx.storage.setAlarm(now + reconcileTimeoutMs(this.env));
     }
   }
 
   confirmUpload(input: ConfirmUploadInput) {
     const broadcasts = this.store.confirmUpload(input, Date.now());
-    for (const delta of broadcasts) this.broadcast(delta);
+    for (const delta of broadcasts) broadcast(this.subscribers, delta);
     const { ocrJobId } = input;
     this.ctx.waitUntil(
       (async () => {
@@ -83,11 +110,11 @@ export class UserDO extends DurableObject<Env> {
             const body = await res.text();
             throw new Error(`transcription /submit: ${res.status} ${body}`);
           }
-          const ack = TranscriptionSubmissionAck.parse(await res.json());
+          const ack = TranscriptionSubmissionAckSchema.parse(await res.json());
           this.setPipelineId(ocrJobId, ack.pipeline_id);
         } catch (err) {
           const failed = this.store.failJob(ocrJobId, getMessage(err, 'transcription submit'), Date.now());
-          if (failed) this.broadcast(failed);
+          if (failed) broadcast(this.subscribers, failed);
         }
       })(),
     );
@@ -95,25 +122,25 @@ export class UserDO extends DurableObject<Env> {
 
   failUpload(ocrJobId: string, error: string) {
     const failed = this.store.failJob(ocrJobId, error, Date.now());
-    if (failed) this.broadcast(failed);
+    if (failed) broadcast(this.subscribers, failed);
   }
 
   async onTranscriptionUpdate(input: TranscriptionUpdate) {
     const saved = this.store.saveUpdate(input, Date.now());
     if (!saved) return;
 
-    this.broadcast(saved);
+    broadcast(this.subscribers, saved);
     if (saved.op !== 'md-page-upsert') return;
 
     const inflight = await this.store.countInflightPages(input.ocrJobId);
     if (inflight > 0) return;
-    const failed = await this.store.hasFailedPage(input.ocrJobId);
+    const isFailed = await this.store.hasFailedPage(input.ocrJobId);
     const completed = this.store.completeJobIfRunning(
       input.ocrJobId,
-      failed ? PAGES_FAILED_REASON : undefined,
+      isFailed ? PAGES_FAILED_REASON : undefined,
       Date.now(),
     );
-    if (completed) this.broadcast(completed);
+    if (completed) broadcast(this.subscribers, completed);
   }
 
   async reserveUpload(input: ReserveUploadInput) {
@@ -121,21 +148,21 @@ export class UserDO extends DurableObject<Env> {
       throw new Error(`too many in-flight jobs (max ${MAX_INFLIGHT_JOBS})`);
     }
     const reserved = this.store.reserveJob(input, Date.now());
-    if (reserved) this.broadcast(reserved);
+    if (reserved) broadcast(this.subscribers, reserved);
 
     const existingAlarm = await this.ctx.storage.getAlarm();
     if (existingAlarm === null) {
-      await this.ctx.storage.setAlarm(Date.now() + this.reconcileTimeoutMs());
+      await this.ctx.storage.setAlarm(Date.now() + reconcileTimeoutMs(this.env));
     }
   }
 
   setPipelineId(ocrJobId: string, pipelineId: string) {
     const updated = this.store.setPipelineId(ocrJobId, pipelineId, Date.now());
-    if (updated) this.broadcast(updated);
+    if (updated) broadcast(this.subscribers, updated);
   }
 
   async signTokenFor(claims: Omit<ResultClaims, 'exp'>) {
-    const exp = Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS;
+    const exp = Math.floor(Date.now() / MILLISECONDS_PER_SECOND) + TOKEN_TTL_SECONDS;
     return await signResultToken({ ...claims, exp }, this.env.RESULT_HMAC_SECRET);
   }
 
@@ -167,20 +194,5 @@ export class UserDO extends DurableObject<Env> {
     } catch {
       /* noop */
     }
-  }
-
-  private broadcast(delta: Delta) {
-    if (this.subscribers.size === 0) return;
-    const payload = formatSseEvent(delta);
-    for (const [id, writer] of this.subscribers) {
-      writer.write(payload).catch(() => {
-        this.subscribers.delete(id);
-      });
-    }
-  }
-
-  private reconcileTimeoutMs() {
-    const seconds = Number.parseInt(this.env.RECONCILE_TIMEOUT_SECONDS, 10);
-    return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : DEFAULT_RECONCILE_TIMEOUT_SECONDS * 1000;
   }
 }

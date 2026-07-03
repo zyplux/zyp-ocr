@@ -7,15 +7,17 @@ import * as schema from '~/durable-objects/schema';
 
 const MIGRATIONS_FOLDER = path.resolve(import.meta.dirname, '../../drizzle');
 
+const byCodePoint = (left: string, right: string) => (left < right ? -1 : Number(left > right));
+
 const readAllMigrationSql = () =>
   readdirSync(MIGRATIONS_FOLDER, { withFileTypes: true })
     .filter(entry => entry.isDirectory())
     .map(d => d.name)
-    .toSorted()
+    .toSorted(byCodePoint)
     .flatMap(dir =>
       readdirSync(path.join(MIGRATIONS_FOLDER, dir))
         .filter(name => name.endsWith('.sql'))
-        .toSorted()
+        .toSorted(byCodePoint)
         .map(file => readFileSync(path.join(MIGRATIONS_FOLDER, dir, file), 'utf8')),
     )
     .join('\n');

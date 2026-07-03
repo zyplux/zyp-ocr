@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import httpx
 
-from .schemas import TranscriptionResult
+if TYPE_CHECKING:
+    from .schemas import TranscriptionResult
 
 
 async def post_result(

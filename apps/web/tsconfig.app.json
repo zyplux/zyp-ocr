@@ -19,7 +19,8 @@
     "resolveJsonModule": true,
     "types": ["vite/client", "vitest/globals", "@cloudflare/workers-types", "bun-types"],
     "paths": {
-      "~/*": ["./src/*"]
+      "~/*": ["./src/*"],
+      "~tests/*": ["./tests/*"]
     }
   },
   "include": ["src/**/*", "tests/**/*", "worker-configuration.d.ts"]

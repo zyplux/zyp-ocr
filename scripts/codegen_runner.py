@@ -22,10 +22,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 import os
 import subprocess
 import sys
 from pathlib import Path
+
+logger = logging.getLogger("codegen_runner")
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 EXCLUDED_DIRS = {
@@ -49,9 +52,7 @@ def discover(suffix: str) -> list[Path]:
     found: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(REPO_ROOT):
         dirnames[:] = [d for d in dirnames if d not in EXCLUDED_DIRS]
-        for fn in filenames:
-            if fn.endswith(suffix):
-                found.append(Path(dirpath) / fn)
+        found.extend(Path(dirpath) / fn for fn in filenames if fn.endswith(suffix))
     return sorted(found)
 
 
@@ -82,21 +83,21 @@ def stage_diff(before: dict[str, str], after: dict[str, str]) -> list[str]:
     return changed
 
 
-def run_once(scripts: list[Path], stage: bool) -> int:
+def run_once(scripts: list[Path], *, stage: bool) -> int:
     if not scripts:
         return 0
     for script in scripts:
         rel = script.relative_to(REPO_ROOT)
         before = git_status_pairs() if stage else {}
-        print(f"==> {rel}", flush=True)
-        rc = subprocess.run(["uv", "run", str(script)], cwd=REPO_ROOT).returncode
+        logger.info("==> %s", rel)
+        rc = subprocess.run(["uv", "run", str(script)], cwd=REPO_ROOT, check=False).returncode
         if rc != 0:
-            print(f"FAIL: {rel} exited {rc}", file=sys.stderr)
+            logger.error("FAIL: %s exited %s", rel, rc)
             return rc
         if stage:
             staged = stage_diff(before, git_status_pairs())
             for path in staged:
-                print(f"    staged: {path}", flush=True)
+                logger.info("    staged: %s", path)
     return 0
 
 
@@ -111,8 +112,10 @@ async def run_one_watch(script: Path) -> int:
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
     )
+    if proc.stdout is None:
+        message = "child process was created without a stdout pipe"
+        raise RuntimeError(message)
     try:
-        assert proc.stdout
         prefix = f"[{rel}] ".encode()
         async for line in proc.stdout:
             sys.stdout.buffer.write(prefix + line)
@@ -131,13 +134,13 @@ async def run_one_watch(script: Path) -> int:
 
 async def run_watch_all(scripts: list[Path]) -> int:
     if not scripts:
-        print("no *.watchregen.py scripts found", file=sys.stderr)
+        logger.warning("no *.watchregen.py scripts found")
         return 0
-    print(f"watching {len(scripts)} script(s):", flush=True)
-    for s in scripts:
-        print(f"  - {s.relative_to(REPO_ROOT)}", flush=True)
+    logger.info("watching %s script(s):", len(scripts))
+    for script in scripts:
+        logger.info("  - %s", script.relative_to(REPO_ROOT))
 
-    tasks = [asyncio.create_task(run_one_watch(s)) for s in scripts]
+    tasks = [asyncio.create_task(run_one_watch(script)) for script in scripts]
     try:
         done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
     except asyncio.CancelledError, KeyboardInterrupt:
@@ -171,6 +174,7 @@ def main() -> int:
     sub.add_parser("watch", help="run *.watchregen.py --watch in parallel")
     args = parser.parse_args()
 
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     if args.cmd == "lefthook":
         scripts = discover(LEFTHOOK_SUFFIX) + discover(WATCHREGEN_SUFFIX)
         return run_once(scripts, stage=True)

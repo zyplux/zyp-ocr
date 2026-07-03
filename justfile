@@ -42,22 +42,24 @@ logs service="":
 ps:
     {{ compose }} ps
 
-# Report unused files, dependencies, and exports across the JS workspace via knip.
+# Report unused code: knip (JS workspace files/deps/exports) + vulture (Python).
 knip:
     bun run knip
+    uv run --active vulture
 
 # Type-check JS (root + all workspaces) and transcription-api Python.
 typecheck:
     bun run typecheck
     uv run --active pyrefly check services/transcription-api/src
 
-# Lint and format with autofix: JS (eslint --fix + prettier --write), Python (ruff check --fix + format), Markdown (rumdl --fix).
+# Lint and format with autofix: JS (eslint --fix + prettier --write), Python (ruff check --fix + format), Markdown (rumdl --fix), then verify org invariants with cerberus.
 lint:
     bun run lint:fix
     bunx prettier --write .
     uv run --active ruff check --fix .
     uv run --active ruff format .
-    rumdl check --fix .
+    uv run --active rumdl check --fix .
+    uv run --active cerberus --fix
 
 # Run all JS (workspace) and Python (pytest) unit tests.
 test:
@@ -80,14 +82,21 @@ format:
     bunx prettier --write .
     uv run --active ruff format .
 
-# Upgrade JS dependencies across the workspace via ncu (catalog-aware). Forwards extra args to ncu (e.g. `just u -i`, `just u --target newest`).
+# Upgrade deps across both workspaces: ncu bumps JS ranges; uv lock --upgrade + uv-bump raise Python >= floors. Forwards extra args to ncu.
 upgrade *args='':
     bun run upgrade -- {{ args }}
+    bun install
+    uv lock --upgrade
+    uvx uv-bump -v
+    uv sync --all-packages --all-groups
 
-# Interactively select and apply upgrades, then reinstall
+# Interactively select JS upgrades, then non-interactively upgrade Python (uv has no interactive mode) and reinstall both.
 upgrade-interactive:
     bun run upgrade -- -i
     bun install
+    uv lock --upgrade
+    uvx uv-bump -v
+    uv sync --all-packages --all-groups
 
 # Load fixture objects into the local MinIO bucket for development.
 seed-minio:

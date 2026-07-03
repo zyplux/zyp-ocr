@@ -6,6 +6,7 @@ import type { MdPageRow } from '~/durable-objects/wire';
 
 import { Markdown } from '~/client/markdown';
 import { mdPagesCollection, ocrJobsCollection } from '~/client/ocr-jobs-collection';
+import { BYTES_PER_KIB } from '~/constants';
 
 const OcrJobPage = () => {
   const params: { ocrJobId: string } = Route.useParams();
@@ -34,7 +35,7 @@ const OcrJobPage = () => {
       {ocrJob ? (
         <p>
           status: <strong>{ocrJob.status}</strong> · {ocrJob.total_pages} pages ·{' '}
-          {(ocrJob.size_bytes / 1024).toFixed(1)} KiB
+          {(ocrJob.size_bytes / BYTES_PER_KIB).toFixed(1)} KiB
           {ocrJob.error ? ` · error: ${ocrJob.error}` : ''}
         </p>
       ) : (
@@ -53,25 +54,27 @@ const OcrJobPage = () => {
   );
 };
 
-const MdPageBlock = ({ mdPage, ocrJobId }: { mdPage: MdPageRow; ocrJobId: string }) => {
+type MdPageBlockProps = { mdPage: MdPageRow; ocrJobId: string };
+
+const MdPageBlock = ({ mdPage, ocrJobId }: MdPageBlockProps) => {
   const [markdown, setMarkdown] = useState<string>();
 
   useEffect(() => {
     if (mdPage.status !== 'done' || !mdPage.markdown_key) return;
-    let cancelled = false;
+    let isCancelled = false;
     const load = async () => {
       try {
         const r = await fetch(`/api/ocr-jobs/${ocrJobId}/md-pages/${mdPage.page_number}`);
         if (!r.ok) return;
         const text = await r.text();
-        if (!cancelled) setMarkdown(text);
+        if (!isCancelled) setMarkdown(text);
       } catch {
         /* ignore fetch failures; rerender will retry on dep change */
       }
     };
     void load();
     return () => {
-      cancelled = true;
+      isCancelled = true;
     };
   }, [ocrJobId, mdPage.page_number, mdPage.status, mdPage.markdown_key]);
 

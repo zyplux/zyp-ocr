@@ -1,0 +1,4 @@
+{
+  "extends": "@totvibe/tsconfig/bun.json",
+  "include": ["eslint.config.ts", "prettier.config.ts"]
+}

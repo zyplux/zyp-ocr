@@ -9,7 +9,7 @@ import * as z from 'zod';
 import type { ResultClaims } from '~/lib/result-token';
 
 import { DEFAULT_USER_ID, MAX_PAGES } from '~/constants';
-import { TranscriptionResult } from '~/contracts';
+import { TranscriptionResultSchema } from '~/contracts';
 import { getMessage } from '~/lib/error';
 import { verifyResultToken } from '~/lib/result-token';
 import { blob } from '~/lib/s3';
@@ -25,16 +25,22 @@ export type TranscriptionUpdate = {
   status: 'done' | 'failed';
 };
 
+const HTTP_BAD_REQUEST = 400;
+const HTTP_UNAUTHORIZED = 401;
+const HTTP_FORBIDDEN = 403;
+const HTTP_NOT_FOUND = 404;
+
 const startHandler = createStartHandler(defaultStreamHandler);
 
 type App = { Bindings: Env; Variables: { claims: ResultClaims } };
 
-const userStub = (env: Env) => env.USER_DO.get(env.USER_DO.idFromName(DEFAULT_USER_ID));
+const userStub = ({ USER_DO: userDoNamespace }: Env) =>
+  userDoNamespace.get(userDoNamespace.idFromName(DEFAULT_USER_ID));
 
-const handleStateStream = async (c: Context<App>) => {
-  const stub = userStub(c.env);
+const handleStateStream = async ({ env, req }: Context<App>) => {
+  const stub = userStub(env);
   const sub = await stub.subscribe();
-  c.req.raw.signal.addEventListener('abort', () => {
+  req.raw.signal.addEventListener('abort', () => {
     void stub.unsubscribe(sub.id);
   });
   return new Response(sub.stream, {
@@ -48,12 +54,12 @@ const handleStateStream = async (c: Context<App>) => {
 
 const requireResultToken: MiddlewareHandler<App> = async (c, next) => {
   const token = c.req.header('x-result-token');
-  if (!token) return c.json({ error: 'missing x-result-token' }, 401);
+  if (!token) return c.json({ error: 'missing x-result-token' }, HTTP_UNAUTHORIZED);
   try {
     const claims = await verifyResultToken(token, [c.env.RESULT_HMAC_SECRET, c.env.RESULT_HMAC_SECRET_PREVIOUS ?? '']);
     c.set('claims', claims);
   } catch (err) {
-    return c.json({ error: getMessage(err, 'result token') }, 401);
+    return c.json({ error: getMessage(err, 'result token') }, HTTP_UNAUTHORIZED);
   }
   await next();
 };
@@ -62,16 +68,16 @@ const factory = createFactory<App>();
 
 const transcriptionResultHandlers = factory.createHandlers(
   requireResultToken,
-  zValidator('json', TranscriptionResult, (result, c) => {
+  zValidator('json', TranscriptionResultSchema, (result, c) => {
     if (!result.success) {
-      return c.json({ details: result.error.issues, error: 'invalid result payload' }, 400);
+      return c.json({ details: result.error.issues, error: 'invalid result payload' }, HTTP_BAD_REQUEST);
     }
   }),
   async c => {
     const claims = c.var.claims;
     const data = c.req.valid('json');
     if (data.ocr_job_id !== claims.ocrJobId) {
-      return c.json({ error: 'token / payload ocr job mismatch' }, 403);
+      return c.json({ error: 'token / payload ocr job mismatch' }, HTTP_FORBIDDEN);
     }
     const input: TranscriptionUpdate = {
       ocrJobId: data.ocr_job_id,
@@ -88,8 +94,8 @@ const transcriptionResultHandlers = factory.createHandlers(
 
 const OcrJobIdSchema = z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/);
 
-const OcrJobParams = z.object({ ocrJobId: OcrJobIdSchema });
-const MdPageParams = z.object({
+const OcrJobParamsSchema = z.object({ ocrJobId: OcrJobIdSchema });
+const MdPageParamsSchema = z.object({
   ocrJobId: OcrJobIdSchema,
   page: z.coerce.number().int().min(1).max(MAX_PAGES),
 });
@@ -100,7 +106,7 @@ const blobRoute = <S extends z.ZodType>(
 ) =>
   factory.createHandlers(
     zValidator('param', schema, (result, c) => {
-      if (!result.success) return c.json({ error: 'invalid path params' }, 400);
+      if (!result.success) return c.json({ error: 'invalid path params' }, HTTP_BAD_REQUEST);
     }),
     c => blob.fetch(c.env, toBlob(c.req.valid('param'))),
   );
@@ -108,9 +114,9 @@ const blobRoute = <S extends z.ZodType>(
 const api = new Hono<App>()
   .get('/api/_internal/state-stream', handleStateStream)
   .post('/api/transcription/results', ...transcriptionResultHandlers)
-  .get('/api/ocr-jobs/:ocrJobId/upload', ...blobRoute(OcrJobParams, p => blob.upload(p.ocrJobId)))
-  .get('/api/ocr-jobs/:ocrJobId/md-pages/:page', ...blobRoute(MdPageParams, p => blob.mdPage(p.ocrJobId, p.page)))
-  .all('/api/*', c => c.json({ error: 'not found' }, 404))
+  .get('/api/ocr-jobs/:ocrJobId/upload', ...blobRoute(OcrJobParamsSchema, p => blob.upload(p.ocrJobId)))
+  .get('/api/ocr-jobs/:ocrJobId/md-pages/:page', ...blobRoute(MdPageParamsSchema, p => blob.mdPage(p.ocrJobId, p.page)))
+  .all('/api/*', c => c.json({ error: 'not found' }, HTTP_NOT_FOUND))
   .all('*', c => startHandler(c.req.raw));
 
 export default api satisfies ExportedHandler<Env>;

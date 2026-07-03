@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import { signResultToken, verifyResultToken } from '~/lib/result-token';
 
+const MILLISECONDS_PER_SECOND = 1000;
+const TOKEN_TTL_SECONDS = 60;
+
 describe('result-token', () => {
   const claims = {
-    exp: Math.floor(Date.now() / 1000) + 60,
+    exp: Math.floor(Date.now() / MILLISECONDS_PER_SECOND) + TOKEN_TTL_SECONDS,
     ocrJobId: '01HABC',
     pageNumber: 3,
     resultId: '01CBID',
@@ -29,7 +32,7 @@ describe('result-token', () => {
   });
 
   it('rejects expired tokens', async () => {
-    const expired = { ...claims, exp: Math.floor(Date.now() / 1000) - 1 };
+    const expired = { ...claims, exp: Math.floor(Date.now() / MILLISECONDS_PER_SECOND) - 1 };
     const token = await signResultToken(expired, 'test-secret');
     await expect(verifyResultToken(token, ['test-secret'])).rejects.toThrow(/expired/);
   });

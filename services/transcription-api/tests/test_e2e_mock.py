@@ -19,6 +19,7 @@ import pytest
 
 WEB_BASE = os.environ.get("E2E_WEB_BASE", "http://127.0.0.1:8787")
 E2E_ENABLED = os.environ.get("TOTVIBE_E2E") == "1"
+MIN_PDF_PAGE_COUNT = 2
 
 MIN_PDF = b"""%PDF-1.4
 1 0 obj
@@ -53,7 +54,7 @@ def _read_first_snapshot(client: httpx.Client) -> dict:
         for line in response.iter_lines():
             if line.startswith("data: "):
                 return json.loads(line[len("data: ") :])
-    raise RuntimeError("state stream closed before any event")
+    pytest.fail("state stream closed before any event")
 
 
 @pytest.mark.skipif(not E2E_ENABLED, reason="set TOTVIBE_E2E=1 with the mock stack running")
@@ -76,7 +77,7 @@ def test_upload_then_md_pages_complete() -> None:
             md_pages = [p for p in snap["md_pages"] if p["ocr_job_id"] == ocr_job_id]
             all_done = all(p["status"] == "done" for p in md_pages)
             if ocr_job and ocr_job["status"] == "done" and all_done:
-                assert len(md_pages) == 2
+                assert len(md_pages) == MIN_PDF_PAGE_COUNT
                 return
             time.sleep(0.5)
         pytest.fail("ocr job did not complete within 15 s")
