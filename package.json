@@ -47,7 +47,7 @@
     }
   },
   "scripts": {
-    "prepare": "uv run lefthook install",
+    "prepare": "test -n \"$CI\" || uv run lefthook install",
     "knip": "bun run build && knip-bun",
     "format": "prettier --write .",
     "typecheck": "bun run build && tsc -b",

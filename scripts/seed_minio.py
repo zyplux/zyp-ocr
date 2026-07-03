@@ -27,12 +27,12 @@ import boto3
 from botocore.client import Config
 
 if TYPE_CHECKING:
-    from botocore.client import BaseClient
+    from mypy_boto3_s3.client import S3Client
 
 logger = logging.getLogger("seed_minio")
 
 
-def make_client() -> BaseClient:
+def make_client() -> S3Client:
     return boto3.client(
         "s3",
         endpoint_url=os.environ.get("S3_ENDPOINT", "http://localhost:9000"),
@@ -43,7 +43,7 @@ def make_client() -> BaseClient:
     )
 
 
-def ensure_bucket(client: BaseClient, bucket: str) -> None:
+def ensure_bucket(client: S3Client, bucket: str) -> None:
     existing = {b["Name"] for b in client.list_buckets().get("Buckets", [])}
     if bucket in existing:
         logger.info("bucket %r already exists", bucket)
@@ -52,7 +52,7 @@ def ensure_bucket(client: BaseClient, bucket: str) -> None:
     logger.info("created bucket %r", bucket)
 
 
-def upload_fixture(client: BaseClient, bucket: str, fixture: Path, ocr_job_id: str | None) -> None:
+def upload_fixture(client: S3Client, bucket: str, fixture: Path, ocr_job_id: str | None) -> None:
     ocr_job = ocr_job_id or fixture.stem
     key = f"ocr-jobs/{ocr_job}/upload.pdf"
     client.upload_file(str(fixture), bucket, key, ExtraArgs={"ContentType": "application/pdf"})
