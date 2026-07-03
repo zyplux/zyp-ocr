@@ -1395,13 +1395,13 @@ dev = [
     { name = "ruff", specifier = ">=0.15.20" },
     { name = "rumdl", specifier = ">=0.2.27" },
     { name = "vulture", specifier = ">=2.16" },
-    { name = "zyplux-cerberus", specifier = ">=0.6.0" },
+    { name = "zyplux-cerberus", specifier = ">=0.7.0" },
 ]
 lint = [
     { name = "ruff", specifier = ">=0.15.20" },
     { name = "rumdl", specifier = ">=0.2.27" },
     { name = "vulture", specifier = ">=2.16" },
-    { name = "zyplux-cerberus", specifier = ">=0.6.0" },
+    { name = "zyplux-cerberus", specifier = ">=0.7.0" },
 ]
 test = [
     { name = "httpx", specifier = ">=0.28.1" },
@@ -1658,14 +1658,14 @@ wheels = [
 
 [[package]]
 name = "zyplux-cerberus"
-version = "0.6.0"
+version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pyyaml" },
     { name = "rust-just" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/dd/93/bc556f64a86ee5d4f6a96fef851112af3ffc82ddd363ac22d46daeabf5a6/zyplux_cerberus-0.6.0.tar.gz", hash = "sha256:306a355038838926c813695a077730dff47897ecb1fd46b2cfddb0906efa4ae0", size = 26261, upload-time = "2026-07-02T17:56:43.896Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d4/77/8cc5e7544b374606af1e5855038fda5589b958d32440e49f6d9cd85f4f3b/zyplux_cerberus-0.7.0.tar.gz", hash = "sha256:96de1b64355197cc6030c77d5d99275a99b0dddf169501bf29b9bea31a350e0c", size = 27435, upload-time = "2026-07-03T11:40:22.539Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/78/c5/2dbd9fbb32bed7487c62fd5d815f85e67cdce4a2c55d42d552a7aa5ef961/zyplux_cerberus-0.6.0-py3-none-any.whl", hash = "sha256:17bcb9617f6d08b0855d3489bcb05a2568502bce3d1fc471d7c4bd3232c395bc", size = 43165, upload-time = "2026-07-02T17:56:43.01Z" },
+    { url = "https://files.pythonhosted.org/packages/cb/20/f0700089b68f0c7266024a467bdfe734f2dc71c6dc6f8d356855e0393d7a/zyplux_cerberus-0.7.0-py3-none-any.whl", hash = "sha256:1514f159757bcbc36f9e758081341a7f63f23222b2a6b34c96ff288f7f519cd7", size = 44780, upload-time = "2026-07-03T11:40:21.667Z" },
 ]
