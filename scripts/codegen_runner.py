@@ -143,7 +143,7 @@ async def run_watch_all(scripts: list[Path]) -> int:
     tasks = [asyncio.create_task(run_one_watch(script)) for script in scripts]
     try:
         done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-    except asyncio.CancelledError, KeyboardInterrupt:
+    except (asyncio.CancelledError, KeyboardInterrupt):
         for t in tasks:
             t.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
