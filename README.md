@@ -23,7 +23,7 @@ Open `http://localhost:8787`.
 To exercise the data flow end-to-end:
 
 ```bash
-TOTVIBE_E2E=1 uv run --active pytest -k e2e
+TOTVIBE_E2E=1 uv run pytest -k e2e
 ```
 
 ## Common recipes

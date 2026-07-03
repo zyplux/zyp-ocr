@@ -1,0 +1,4 @@
+preset = "strict"
+
+project-includes = ["services/transcription-api/src", "services/transcription-api/tests", "scripts"]
+search-path = ["services/transcription-api/src"]

@@ -23,7 +23,6 @@ jobs:
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: bun install --frozen-lockfile
       - run: uv sync --locked --all-packages --all-groups
-      - run: bun run build
       - run: bun run knip
       - run: uv run --no-sync vulture
       - run: bun run typecheck
@@ -32,7 +31,7 @@ jobs:
       - run: bunx prettier --check .
       - run: uv run --no-sync ruff check
       - run: uv run --no-sync ruff format --check
-      - run: uv run --no-sync pyrefly check services/transcription-api/src
+      - run: uv run --no-sync pyrefly check
       - run: bun run test
       - run: uv run --no-sync pytest
       - run: uv run --no-sync cerberus

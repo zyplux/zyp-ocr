@@ -66,6 +66,36 @@ wheels = [
 ]
 
 [[package]]
+name = "boto3-stubs"
+version = "1.43.40"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "botocore-stubs" },
+    { name = "types-s3transfer" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/02/64/bfe0759ea0e4ffdc18dd5649f08e2fb0d5b45d08111dad81c8930de54b21/boto3_stubs-1.43.40.tar.gz", hash = "sha256:e61f3e05fd658c3928c704a1ca7f9a020bb19021c961c839239cb717b8afdc95", size = 102884, upload-time = "2026-07-03T01:58:04.984Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e0/87/39434961e5d2e3972b39e4fafa29737d5da1d832e960487553e4202b0cd8/boto3_stubs-1.43.40-py3-none-any.whl", hash = "sha256:d67ff01f33d21e644e3bdf8799484fae35798f64cb5a25e440e9d35302a8632f", size = 70764, upload-time = "2026-07-03T01:57:59.939Z" },
+]
+
+[package.optional-dependencies]
+s3 = [
+    { name = "mypy-boto3-s3" },
+]
+
+[[package]]
+name = "botocore-stubs"
+version = "1.43.14"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "types-awscrt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7f/81/79693e833291c00dc89ee610e5e915381b6f08233912e28df50106840780/botocore_stubs-1.43.14.tar.gz", hash = "sha256:9e3bc1fdd51da7473f0df726c82747a1b0ae913449d629659765c247fecc2039", size = 42738, upload-time = "2026-05-25T06:06:37.484Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/89/ca/f017727b11895908c5dedc829cf2ec35e0c4b2a26ba875db325fef2cefdf/botocore_stubs-1.43.14-py3-none-any.whl", hash = "sha256:fb98f1475c92fd718644e786b5c543a20f1b1f610e89e0a7191c3f1f429c75aa", size = 67093, upload-time = "2026-05-25T06:06:34.532Z" },
+]
+
+[[package]]
 name = "certifi"
 version = "2026.6.17"
 source = { registry = "https://pypi.org/simple" }
@@ -506,6 +536,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/e0/47/dd32fa426cc72114383ac549964eecb20ecfd886d1e5ccf5340b55b02f57/mpmath-1.3.0.tar.gz", hash = "sha256:7a28eb2a9774d00c7bc92411c19a89209d5da7c4c9a9e227be8330a23a25b91f", size = 508106, upload-time = "2023-03-07T16:47:11.061Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/43/e3/7d92a15f894aa0c9c4b49b8ee9ac9850d6e63b03c9c32c0367a13ae62209/mpmath-1.3.0-py3-none-any.whl", hash = "sha256:a0b2b9fe80bbcd81a6647ff13108738cfb482d481d826cc0e02f5b35e5c88d2c", size = 536198, upload-time = "2023-03-07T16:47:09.197Z" },
+]
+
+[[package]]
+name = "mypy-boto3-s3"
+version = "1.43.31"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1a/1d/cc08acc62582cb6a9b6ccb8dac34da552f259c19f536ab632e03eb14be5f/mypy_boto3_s3-1.43.31.tar.gz", hash = "sha256:fb8674063f3a491f1364c025371c3155077cd780bd04176497f8b31b5a8dd34f", size = 78802, upload-time = "2026-06-16T20:37:48.774Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0b/c0/8c9b1bc257b716251683c3d1c8d9bb45381f71616dacf208b7d484a8737a/mypy_boto3_s3-1.43.31-py3-none-any.whl", hash = "sha256:b21c97c0db23cffcf0704625b42cf369366ad4bbdf84a4eb2fa265431c60ae83", size = 86161, upload-time = "2026-06-16T20:37:46.043Z" },
 ]
 
 [[package]]
@@ -1355,6 +1394,7 @@ source = { virtual = "." }
 
 [package.dev-dependencies]
 dev = [
+    { name = "boto3-stubs", extra = ["s3"] },
     { name = "httpx" },
     { name = "lefthook" },
     { name = "pyrefly" },
@@ -1379,6 +1419,7 @@ test = [
     { name = "pytest-cov" },
 ]
 type = [
+    { name = "boto3-stubs", extra = ["s3"] },
     { name = "pyrefly" },
 ]
 
@@ -1386,6 +1427,7 @@ type = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "boto3-stubs", extras = ["s3"], specifier = ">=1.43.40" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "lefthook", specifier = ">=2.1.9" },
     { name = "pyrefly", specifier = ">=1.1.1" },
@@ -1395,13 +1437,13 @@ dev = [
     { name = "ruff", specifier = ">=0.15.20" },
     { name = "rumdl", specifier = ">=0.2.27" },
     { name = "vulture", specifier = ">=2.16" },
-    { name = "zyplux-cerberus", specifier = ">=0.6.0" },
+    { name = "zyplux-cerberus", specifier = ">=0.8.0" },
 ]
 lint = [
     { name = "ruff", specifier = ">=0.15.20" },
     { name = "rumdl", specifier = ">=0.2.27" },
     { name = "vulture", specifier = ">=2.16" },
-    { name = "zyplux-cerberus", specifier = ">=0.6.0" },
+    { name = "zyplux-cerberus", specifier = ">=0.8.0" },
 ]
 test = [
     { name = "httpx", specifier = ">=0.28.1" },
@@ -1409,7 +1451,10 @@ test = [
     { name = "pytest-asyncio", specifier = ">=1.4.0" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
 ]
-type = [{ name = "pyrefly", specifier = ">=1.1.1" }]
+type = [
+    { name = "boto3-stubs", extras = ["s3"], specifier = ">=1.43.40" },
+    { name = "pyrefly", specifier = ">=1.1.1" },
+]
 
 [[package]]
 name = "tqdm"
@@ -1497,6 +1542,24 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/7c/f7/68adc395201b20b872d68e975386832e8005ffeacedd43a1d837a32815be/typer-0.26.8.tar.gz", hash = "sha256:c244a6bd558886fe3f8780efb6bdd28bb9aff005a94eedebaa5cb32926fe2f7e", size = 202097, upload-time = "2026-06-26T09:22:45.705Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/80/87/b9fd69c92c6102a066e1b86a35243f53e70bd4c709f2a26d9f4fee4f4dc0/typer-0.26.8-py3-none-any.whl", hash = "sha256:3512ca79ac5c11113414b36e80281b872884477722440691c89d1112e321a49c", size = 122564, upload-time = "2026-06-26T09:22:44.72Z" },
+]
+
+[[package]]
+name = "types-awscrt"
+version = "0.34.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3e/59/44409a8fc06b444ab1a6f71dcb29d49a6e17e02424345eb51b051bebb345/types_awscrt-0.34.1.tar.gz", hash = "sha256:559aa04250f6a419a617dfb788f3e10903aaf74700ef23e521b64a411b83b803", size = 19062, upload-time = "2026-06-05T04:40:10.689Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e4/b1/214b12162b452ed6acd230065e6c587cde6b96871e3ce6d653f40888f8df/types_awscrt-0.34.1-py3-none-any.whl", hash = "sha256:20c752b6031544d8f694803c35174aee129f1be5ddf886ae46d22f7ffd9b7d75", size = 45688, upload-time = "2026-06-05T04:40:09.198Z" },
+]
+
+[[package]]
+name = "types-s3transfer"
+version = "0.16.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/fe/64/42689150509eb3e6e82b33ee3d89045de1592488842ddf23c56957786d05/types_s3transfer-0.16.0.tar.gz", hash = "sha256:b4636472024c5e2b62278c5b759661efeb52a81851cde5f092f24100b1ecb443", size = 13557, upload-time = "2025-12-08T08:13:09.928Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/98/27/e88220fe6274eccd3bdf95d9382918716d312f6f6cef6a46332d1ee2feff/types_s3transfer-0.16.0-py3-none-any.whl", hash = "sha256:1c0cd111ecf6e21437cb410f5cddb631bfb2263b77ad973e79b9c6d0cb24e0ef", size = 19247, upload-time = "2025-12-08T08:13:08.426Z" },
 ]
 
 [[package]]
@@ -1658,14 +1721,14 @@ wheels = [
 
 [[package]]
 name = "zyplux-cerberus"
-version = "0.6.0"
+version = "0.8.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pyyaml" },
     { name = "rust-just" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/dd/93/bc556f64a86ee5d4f6a96fef851112af3ffc82ddd363ac22d46daeabf5a6/zyplux_cerberus-0.6.0.tar.gz", hash = "sha256:306a355038838926c813695a077730dff47897ecb1fd46b2cfddb0906efa4ae0", size = 26261, upload-time = "2026-07-02T17:56:43.896Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1e/e0/20d2da3251a505d82624e60c8e1e47e70bf44e0ea62876db26f58db59534/zyplux_cerberus-0.8.0.tar.gz", hash = "sha256:e82cf916cdaa9629f90a0d60eb4286b5443f1d1e2f4449ff29a73d1f518db21d", size = 32011, upload-time = "2026-07-03T15:43:29.136Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/78/c5/2dbd9fbb32bed7487c62fd5d815f85e67cdce4a2c55d42d552a7aa5ef961/zyplux_cerberus-0.6.0-py3-none-any.whl", hash = "sha256:17bcb9617f6d08b0855d3489bcb05a2568502bce3d1fc471d7c4bd3232c395bc", size = 43165, upload-time = "2026-07-02T17:56:43.01Z" },
+    { url = "https://files.pythonhosted.org/packages/1a/a2/8ecac08aaffe6c8278d09b4834b2a3c5b5fb9da5e691c497927011d8567b/zyplux_cerberus-0.8.0-py3-none-any.whl", hash = "sha256:200e4d0e8b48ed6b7c514ae97cb8c623de0c71d344bfe49fd5a8ad45d4f413c2", size = 50576, upload-time = "2026-07-03T15:43:28.134Z" },
 ]

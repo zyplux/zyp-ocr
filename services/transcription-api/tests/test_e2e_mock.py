@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import time
+from typing import Any
 
 import httpx
 import pytest
@@ -48,7 +49,7 @@ startxref
 """
 
 
-def _read_first_snapshot(client: httpx.Client) -> dict:
+def _read_first_snapshot(client: httpx.Client) -> dict[str, Any]:
     with client.stream("GET", "/api/_internal/state-stream") as response:
         response.raise_for_status()
         for line in response.iter_lines():

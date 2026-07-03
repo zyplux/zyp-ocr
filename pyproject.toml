@@ -21,9 +21,10 @@ lint = [
     "ruff>=0.15.20",
     "rumdl>=0.2.27",
     "vulture>=2.16",
-    "zyplux-cerberus>=0.6.0",
+    "zyplux-cerberus>=0.8.0",
 ]
 type = [
+    "boto3-stubs[s3]>=1.43.40",
     "pyrefly>=1.1.1",
 ]
 test = [
