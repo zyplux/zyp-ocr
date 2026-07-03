@@ -11,5 +11,10 @@ if TYPE_CHECKING:
 
 
 def run_ocr(_pdf_path: str, _ocr_job_id: str) -> AsyncIterator[TranscriptionResult]:
-    """Run glmocr page-by-page and yield per-page completion records."""
+    """Stub for the real glmocr pipeline: always raises NotImplementedError.
+
+    `_ocr_with_fallback` in routes.py catches it and emits a single failed page.
+    The real implementation will run glmocr page-by-page and yield per-page
+    completion records.
+    """
     raise NotImplementedError
