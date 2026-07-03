@@ -6,29 +6,28 @@ import * as z from 'zod';
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
-const dependencyMap = z.record(z.string(), z.string());
+const DependencyMapSchema = z.record(z.string(), z.string());
 
-const manifestSchema = z.object({
-  dependencies: dependencyMap.optional(),
-  devDependencies: dependencyMap.optional(),
-  optionalDependencies: dependencyMap.optional(),
-  peerDependencies: dependencyMap.optional(),
+const ManifestSchema = z.object({
+  dependencies: DependencyMapSchema.optional(),
+  devDependencies: DependencyMapSchema.optional(),
+  optionalDependencies: DependencyMapSchema.optional(),
+  peerDependencies: DependencyMapSchema.optional(),
 });
 
-const workspaceSchema = z.object({
-  workspaces: z.object({ packages: z.array(z.string()) }),
-});
+const PackageListSchema = z.object({ packages: z.array(z.string()) });
+const WorkspaceSchema = z.object({ workspaces: PackageListSchema });
 
 const dependencyKeys = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const;
 
-const readManifest = (manifestPath: string) => {
-  const parsed: unknown = JSON.parse(readFileSync(manifestPath, 'utf8'));
-  return parsed;
-};
+const WORKSPACE_GLOB_SUFFIX = '/*';
+
+const readManifest = <S extends z.ZodType>(manifestPath: string, schema: S) =>
+  schema.parse(JSON.parse(readFileSync(manifestPath, 'utf8')));
 
 const expandPattern = (pattern: string) => {
-  if (!pattern.endsWith('/*')) return [pattern];
-  const parent = pattern.slice(0, -2);
+  if (!pattern.endsWith(WORKSPACE_GLOB_SUFFIX)) return [pattern];
+  const parent = pattern.slice(0, -WORKSPACE_GLOB_SUFFIX.length);
   const parentPath = path.join(repoRoot, parent);
   if (!existsSync(parentPath)) return [];
   return readdirSync(parentPath, { withFileTypes: true })
@@ -37,28 +36,24 @@ const expandPattern = (pattern: string) => {
 };
 
 const listManifestPaths = () => {
-  const { workspaces } = workspaceSchema.parse(readManifest(path.join(repoRoot, 'package.json')));
+  const { workspaces } = readManifest(path.join(repoRoot, 'package.json'), WorkspaceSchema);
   const relativePaths = ['.', ...workspaces.packages.flatMap(pattern => expandPattern(pattern))];
   return relativePaths.map(relativePath => path.join(repoRoot, relativePath, 'package.json'));
 };
 
-const findOffenders = () => {
-  const offenders: string[] = [];
-  for (const manifestPath of listManifestPaths()) {
-    const manifest = manifestSchema.parse(readManifest(manifestPath));
-    const label = path.relative(repoRoot, manifestPath);
-    for (const key of dependencyKeys) {
-      const deps = manifest[key];
-      if (!deps) continue;
-      for (const [name, spec] of Object.entries(deps)) {
-        if (!spec.startsWith('catalog:') && !spec.startsWith('workspace:')) {
-          offenders.push(`${label} → ${key}.${name} = "${spec}"`);
-        }
-      }
-    }
-  }
-  return offenders;
-};
+type Manifest = z.infer<typeof ManifestSchema>;
+
+const collectManifestOffenders = (label: string, manifest: Manifest) =>
+  dependencyKeys.flatMap(key =>
+    Object.entries(manifest[key] ?? {})
+      .filter(([, spec]) => !spec.startsWith('catalog:') && !spec.startsWith('workspace:'))
+      .map(([name, spec]) => `${label} → ${key}.${name} = "${spec}"`),
+  );
+
+const findOffenders = () =>
+  listManifestPaths().flatMap(manifestPath =>
+    collectManifestOffenders(path.relative(repoRoot, manifestPath), readManifest(manifestPath, ManifestSchema)),
+  );
 
 describe('workspace dependency discipline', () => {
   it('every dependency entry in a workspace package.json uses catalog: or workspace:', () => {

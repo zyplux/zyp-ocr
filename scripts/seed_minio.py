@@ -17,15 +17,22 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import boto3
 from botocore.client import Config
 
+if TYPE_CHECKING:
+    from botocore.client import BaseClient
 
-def make_client():
+logger = logging.getLogger("seed_minio")
+
+
+def make_client() -> BaseClient:
     return boto3.client(
         "s3",
         endpoint_url=os.environ.get("S3_ENDPOINT", "http://localhost:9000"),
@@ -36,23 +43,24 @@ def make_client():
     )
 
 
-def ensure_bucket(client, bucket: str) -> None:
+def ensure_bucket(client: BaseClient, bucket: str) -> None:
     existing = {b["Name"] for b in client.list_buckets().get("Buckets", [])}
     if bucket in existing:
-        print(f"bucket {bucket!r} already exists")
+        logger.info("bucket %r already exists", bucket)
         return
     client.create_bucket(Bucket=bucket)
-    print(f"created bucket {bucket!r}")
+    logger.info("created bucket %r", bucket)
 
 
-def upload_fixture(client, bucket: str, fixture: Path, ocr_job_id: str | None) -> None:
+def upload_fixture(client: BaseClient, bucket: str, fixture: Path, ocr_job_id: str | None) -> None:
     ocr_job = ocr_job_id or fixture.stem
     key = f"ocr-jobs/{ocr_job}/upload.pdf"
     client.upload_file(str(fixture), bucket, key, ExtraArgs={"ContentType": "application/pdf"})
-    print(f"uploaded {fixture} → s3://{bucket}/{key}")
+    logger.info("uploaded %s → s3://%s/%s", fixture, bucket, key)
 
 
 def main() -> int:
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fixture", type=Path, help="optional PDF to seed")
     parser.add_argument("--ocr-job-id", help="ocr job id to use for the fixture key")
@@ -64,7 +72,7 @@ def main() -> int:
 
     if args.fixture:
         if not args.fixture.exists():
-            print(f"fixture not found: {args.fixture}", file=sys.stderr)
+            logger.error("fixture not found: %s", args.fixture)
             return 1
         upload_fixture(client, bucket, args.fixture, args.ocr_job_id)
 

@@ -7,7 +7,7 @@ export type OcrJobStatus = (typeof OCR_JOB_STATUSES)[number];
 export const MD_PAGE_STATUSES = ['transcribing', 'done', 'failed'] as const;
 export type MdPageStatus = (typeof MD_PAGE_STATUSES)[number];
 
-export const ocr_jobs = sqliteTable(
+export const ocrJobs = sqliteTable(
   'ocr_jobs',
   {
     completed_at: integer(),
@@ -62,7 +62,7 @@ export const ocr_jobs = sqliteTable(
   ],
 );
 
-export const md_pages = sqliteTable(
+export const mdPages = sqliteTable(
   'md_pages',
   {
     completed_at: integer(),
@@ -71,7 +71,7 @@ export const md_pages = sqliteTable(
     markdown_key: text(),
     ocr_job_id: text()
       .notNull()
-      .references(() => ocr_jobs.id),
+      .references(() => ocrJobs.id),
     page_number: integer().notNull(),
     started_at: integer(),
     status: text({ enum: MD_PAGE_STATUSES })
@@ -106,5 +106,5 @@ export const md_pages = sqliteTable(
   ],
 );
 
-export type MdPageDbRow = typeof md_pages.$inferSelect;
-export type OcrJobDbRow = typeof ocr_jobs.$inferSelect;
+export type MdPageDbRow = typeof mdPages.$inferSelect;
+export type OcrJobDbRow = typeof ocrJobs.$inferSelect;

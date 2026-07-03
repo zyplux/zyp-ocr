@@ -15,138 +15,139 @@ type SavedUpdate = { op: 'md-page-upsert'; row: MdPageDbRow } | { op: 'ocr-job-u
 export class UserStore<TRunResult = unknown> {
   constructor(private readonly db: StoreDb<TRunResult>) {}
 
-  completeJobIfRunning = (ocrJobId: string, error: string | undefined, completedAt: number) => {
+  completeJobIfRunning(ocrJobId: string, error: string | undefined, completedAt: number) {
     const [row] = this.db
-      .update(schema.ocr_jobs)
+      .update(schema.ocrJobs)
       .set({ completed_at: completedAt, error: error ?? sql`NULL` })
-      .where(and(eq(schema.ocr_jobs.id, ocrJobId), eq(schema.ocr_jobs.status, 'transcribing')))
+      .where(and(eq(schema.ocrJobs.id, ocrJobId), eq(schema.ocrJobs.status, 'transcribing')))
       .returning()
       .all();
     return row ? ({ op: 'ocr-job-upsert', row } as const satisfies SavedUpdate) : undefined;
-  };
+  }
 
-  confirmUpload = (input: ConfirmUploadInput, now: number) => {
+  confirmUpload({ ocrJobId, sizeBytes, totalPages }: ConfirmUploadInput, now: number) {
     const broadcasts: SavedUpdate[] = [];
     const [jobRow] = this.db
-      .update(schema.ocr_jobs)
-      .set({ size_bytes: input.sizeBytes, total_pages: input.totalPages })
-      .where(eq(schema.ocr_jobs.id, input.ocrJobId))
+      .update(schema.ocrJobs)
+      .set({ size_bytes: sizeBytes, total_pages: totalPages })
+      .where(eq(schema.ocrJobs.id, ocrJobId))
       .returning()
       .all();
     if (!jobRow) return broadcasts;
     broadcasts.push({ op: 'ocr-job-upsert', row: jobRow });
-    if (input.totalPages > 0) {
-      const pageValues = Array.from({ length: input.totalPages }, (_, i) => ({
+    if (totalPages > 0) {
+      const pageValues = Array.from({ length: totalPages }, (_, i) => ({
         created_at: now,
-        ocr_job_id: input.ocrJobId,
+        ocr_job_id: ocrJobId,
         page_number: i + 1,
       }));
-      const pageRows = this.db.insert(schema.md_pages).values(pageValues).returning().all();
+      const pageRows = this.db.insert(schema.mdPages).values(pageValues).returning().all();
       for (const row of pageRows) broadcasts.push({ op: 'md-page-upsert', row });
     }
     return broadcasts;
-  };
+  }
 
-  countInflight = async () => {
+  async countInflight() {
     const [row] = await this.db
       .select({ c: count() })
-      .from(schema.ocr_jobs)
-      .where(notInArray(schema.ocr_jobs.status, ['done', 'failed']));
+      .from(schema.ocrJobs)
+      .where(notInArray(schema.ocrJobs.status, ['done', 'failed']));
     return row?.c ?? 0;
-  };
+  }
 
-  countInflightPages = async (ocrJobId: string) => {
+  async countInflightPages(ocrJobId: string) {
     const [row] = await this.db
       .select({ c: count() })
-      .from(schema.md_pages)
-      .where(and(eq(schema.md_pages.ocr_job_id, ocrJobId), eq(schema.md_pages.status, 'transcribing')));
+      .from(schema.mdPages)
+      .where(and(eq(schema.mdPages.ocr_job_id, ocrJobId), eq(schema.mdPages.status, 'transcribing')));
     return row?.c ?? 0;
-  };
+  }
 
-  failJob = (ocrJobId: string, error: string, completedAt: number) => {
+  failJob(ocrJobId: string, error: string, completedAt: number) {
     const [row] = this.db
-      .update(schema.ocr_jobs)
+      .update(schema.ocrJobs)
       .set({ completed_at: completedAt, error })
-      .where(eq(schema.ocr_jobs.id, ocrJobId))
+      .where(eq(schema.ocrJobs.id, ocrJobId))
       .returning()
       .all();
     return row ? ({ op: 'ocr-job-upsert', row } as const satisfies SavedUpdate) : undefined;
-  };
+  }
 
-  findStaleJobs = async (cutoff: number) =>
-    await this.db
+  async findStaleJobs(cutoff: number) {
+    return await this.db
       .select({
-        id: schema.ocr_jobs.id,
-        started_at: schema.ocr_jobs.started_at,
-        total_pages: schema.ocr_jobs.total_pages,
-        upload_key: schema.ocr_jobs.upload_key,
+        id: schema.ocrJobs.id,
+        started_at: schema.ocrJobs.started_at,
+        total_pages: schema.ocrJobs.total_pages,
+        upload_key: schema.ocrJobs.upload_key,
       })
-      .from(schema.ocr_jobs)
-      .where(and(notInArray(schema.ocr_jobs.status, ['done', 'failed']), lt(schema.ocr_jobs.created_at, cutoff)));
+      .from(schema.ocrJobs)
+      .where(and(notInArray(schema.ocrJobs.status, ['done', 'failed']), lt(schema.ocrJobs.created_at, cutoff)));
+  }
 
-  hasFailedPage = async (ocrJobId: string) => {
+  async hasFailedPage(ocrJobId: string) {
     const [row] = await this.db
       .select({ c: count() })
-      .from(schema.md_pages)
-      .where(and(eq(schema.md_pages.ocr_job_id, ocrJobId), eq(schema.md_pages.status, 'failed')));
+      .from(schema.mdPages)
+      .where(and(eq(schema.mdPages.ocr_job_id, ocrJobId), eq(schema.mdPages.status, 'failed')));
     return (row?.c ?? 0) > 0;
-  };
+  }
 
-  readSnapshot = async () => {
-    const ocrRows = await this.db.select().from(schema.ocr_jobs).orderBy(desc(schema.ocr_jobs.created_at));
+  async readSnapshot() {
+    const ocrRows = await this.db.select().from(schema.ocrJobs).orderBy(desc(schema.ocrJobs.created_at));
     const pageRows = await this.db
       .select()
-      .from(schema.md_pages)
-      .orderBy(schema.md_pages.ocr_job_id, schema.md_pages.page_number);
+      .from(schema.mdPages)
+      .orderBy(schema.mdPages.ocr_job_id, schema.mdPages.page_number);
     return { md_pages: pageRows, ocr_jobs: ocrRows };
-  };
+  }
 
-  requireMdPage = async (ocrJobId: string, pageNumber: number) => {
+  async requireMdPage(ocrJobId: string, pageNumber: number) {
     const [row] = await this.db
       .select()
-      .from(schema.md_pages)
-      .where(and(eq(schema.md_pages.ocr_job_id, ocrJobId), eq(schema.md_pages.page_number, pageNumber)))
+      .from(schema.mdPages)
+      .where(and(eq(schema.mdPages.ocr_job_id, ocrJobId), eq(schema.mdPages.page_number, pageNumber)))
       .limit(1);
     if (!row) throw new Error(`md page not found: ${ocrJobId}/${pageNumber}`);
     return row;
-  };
+  }
 
-  requireOcrJob = async (ocrJobId: string) => {
-    const [row] = await this.db.select().from(schema.ocr_jobs).where(eq(schema.ocr_jobs.id, ocrJobId)).limit(1);
+  async requireOcrJob(ocrJobId: string) {
+    const [row] = await this.db.select().from(schema.ocrJobs).where(eq(schema.ocrJobs.id, ocrJobId)).limit(1);
     if (!row) throw new Error(`ocr job not found: ${ocrJobId}`);
     return row;
-  };
+  }
 
-  reserveJob = (input: ReserveUploadInput, createdAt: number) => {
+  reserveJob({ ocrJobId, sizeBytes, uploadKey }: ReserveUploadInput, createdAt: number) {
     const [row] = this.db
-      .insert(schema.ocr_jobs)
+      .insert(schema.ocrJobs)
       .values({
         created_at: createdAt,
-        id: input.ocrJobId,
-        size_bytes: input.sizeBytes,
+        id: ocrJobId,
+        size_bytes: sizeBytes,
         total_pages: 0,
-        upload_key: input.uploadKey,
+        upload_key: uploadKey,
       })
       .returning()
       .all();
     return row ? ({ op: 'ocr-job-upsert', row } as const satisfies SavedUpdate) : undefined;
-  };
+  }
 
-  saveUpdate = (input: TranscriptionUpdate, now: number) =>
-    this.db.transaction(tx => {
-      if (typeof input.pageNumber === 'number') {
+  saveUpdate({ error, markdownKey, ocrJobId, pageNumber, status }: TranscriptionUpdate, now: number) {
+    return this.db.transaction(tx => {
+      if (typeof pageNumber === 'number') {
         const [row] = tx
-          .update(schema.md_pages)
+          .update(schema.mdPages)
           .set({
             completed_at: now,
-            error: input.status === 'failed' ? (input.error ?? 'failed') : sql`NULL`,
-            markdown_key: input.markdownKey ?? sql`NULL`,
+            error: status === 'failed' ? (error ?? 'failed') : sql`NULL`,
+            markdown_key: markdownKey ?? sql`NULL`,
           })
           .where(
             and(
-              eq(schema.md_pages.ocr_job_id, input.ocrJobId),
-              eq(schema.md_pages.page_number, input.pageNumber),
-              eq(schema.md_pages.status, 'transcribing'),
+              eq(schema.mdPages.ocr_job_id, ocrJobId),
+              eq(schema.mdPages.page_number, pageNumber),
+              eq(schema.mdPages.status, 'transcribing'),
             ),
           )
           .returning()
@@ -154,23 +155,24 @@ export class UserStore<TRunResult = unknown> {
         return row ? ({ op: 'md-page-upsert', row } as const satisfies SavedUpdate) : undefined;
       }
 
-      const finalError = input.status === 'failed' ? (input.error ?? 'failed') : sql`NULL`;
+      const finalError = status === 'failed' ? (error ?? 'failed') : sql`NULL`;
       const [row] = tx
-        .update(schema.ocr_jobs)
+        .update(schema.ocrJobs)
         .set({ completed_at: now, error: finalError })
-        .where(and(eq(schema.ocr_jobs.id, input.ocrJobId), eq(schema.ocr_jobs.status, 'transcribing')))
+        .where(and(eq(schema.ocrJobs.id, ocrJobId), eq(schema.ocrJobs.status, 'transcribing')))
         .returning()
         .all();
       return row ? ({ op: 'ocr-job-upsert', row } as const satisfies SavedUpdate) : undefined;
     });
+  }
 
-  setPipelineId = (ocrJobId: string, pipelineId: string, startedAt: number) => {
+  setPipelineId(ocrJobId: string, pipelineId: string, startedAt: number) {
     const [row] = this.db
-      .update(schema.ocr_jobs)
+      .update(schema.ocrJobs)
       .set({ pipeline_id: pipelineId, started_at: startedAt })
-      .where(eq(schema.ocr_jobs.id, ocrJobId))
+      .where(eq(schema.ocrJobs.id, ocrJobId))
       .returning()
       .all();
     return row ? ({ op: 'ocr-job-upsert', row } as const satisfies SavedUpdate) : undefined;
-  };
+  }
 }

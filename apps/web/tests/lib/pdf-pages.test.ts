@@ -4,9 +4,10 @@ import { estimatePageCount } from '~/lib/pdf-pages';
 
 describe('estimatePageCount', () => {
   it('reads /Count from a /Type /Pages object', () => {
-    const pdf = '%PDF-1.4\n1 0 obj\n<< /Type /Pages /Kids [] /Count 7 >>\nendobj\n';
+    const declaredPageCount = 7;
+    const pdf = `%PDF-1.4\n1 0 obj\n<< /Type /Pages /Kids [] /Count ${declaredPageCount} >>\nendobj\n`;
     const bytes = new TextEncoder().encode(pdf);
-    expect(estimatePageCount(bytes)).toBe(7);
+    expect(estimatePageCount(bytes)).toBe(declaredPageCount);
   });
 
   it('falls back to 1 when no /Pages object is found', () => {

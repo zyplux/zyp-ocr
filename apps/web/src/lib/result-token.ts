@@ -5,14 +5,17 @@
 
 import * as z from 'zod';
 
-export const ResultClaims = z.object({
+const MILLISECONDS_PER_SECOND = 1000;
+const BASE64_BLOCK_SIZE = 4;
+
+const ResultClaimsSchema = z.object({
   exp: z.number(),
   ocrJobId: z.string(),
   pageNumber: z.number().optional(),
   resultId: z.string(),
   userId: z.string(),
 });
-export type ResultClaims = z.infer<typeof ResultClaims>;
+export type ResultClaims = z.infer<typeof ResultClaimsSchema>;
 
 const encoder = new TextEncoder();
 
@@ -24,7 +27,8 @@ const base64UrlEncode = (bytes: Uint8Array) => {
 
 const base64UrlDecode = (input: string) => {
   const padded = input.replaceAll('-', '+').replaceAll('_', '/');
-  const pad = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4));
+  const pad =
+    padded.length % BASE64_BLOCK_SIZE === 0 ? '' : '='.repeat(BASE64_BLOCK_SIZE - (padded.length % BASE64_BLOCK_SIZE));
   const bin = atob(padded + pad);
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.codePointAt(i) ?? 0;
@@ -59,23 +63,22 @@ export const verifyResultToken = async (token: string, secrets: readonly string[
   const sig = base64UrlDecode(token.slice(dot + 1));
   const headerBytes = encoder.encode(header);
 
-  let matched = false;
+  let isMatched = false;
   for (const secret of secrets) {
     if (!secret) continue;
     const key = await importKey(secret);
     const expected = new Uint8Array(await crypto.subtle.sign('HMAC', key, headerBytes));
     if (timingSafeEqual(expected, sig)) {
-      matched = true;
+      isMatched = true;
       break;
     }
   }
-  if (!matched) throw new Error('invalid signature');
+  if (!isMatched) throw new Error('invalid signature');
 
   const claimsJson = new TextDecoder().decode(base64UrlDecode(header));
-  const parsed: unknown = JSON.parse(claimsJson);
-  const result = ResultClaims.safeParse(parsed);
+  const result = ResultClaimsSchema.safeParse(JSON.parse(claimsJson));
   if (!result.success) throw new Error('malformed token');
   const claims = result.data;
-  if (claims.exp * 1000 < Date.now()) throw new Error('token expired');
+  if (claims.exp * MILLISECONDS_PER_SECOND < Date.now()) throw new Error('token expired');
   return claims;
 };

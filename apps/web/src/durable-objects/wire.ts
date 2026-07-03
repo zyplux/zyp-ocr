@@ -39,13 +39,13 @@ const SnapshotSchema = z.object({
   ocr_jobs: z.array(OcrJobRowSchema),
 });
 
-export const Delta = z.discriminatedUnion('op', [
+export const DeltaSchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('md-page-upsert'), row: MdPageRowSchema }),
   z.object({ op: z.literal('ocr-job-upsert'), row: OcrJobRowSchema }),
   z.object({ op: z.literal('snapshot'), snapshot: SnapshotSchema }),
 ]);
 
-export type Delta = z.infer<typeof Delta>;
+export type Delta = z.infer<typeof DeltaSchema>;
 export type MdPageRow = z.infer<typeof MdPageRowSchema>;
 export type OcrJobRow = z.infer<typeof OcrJobRowSchema>;
 export type Snapshot = z.infer<typeof SnapshotSchema>;

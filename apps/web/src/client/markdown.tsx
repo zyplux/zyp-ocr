@@ -1,1 +1,3 @@
-export const Markdown = ({ source }: { source: string }) => <pre style={{ whiteSpace: 'pre-wrap' }}>{source}</pre>;
+type MarkdownProps = { source: string };
+
+export const Markdown = ({ source }: MarkdownProps) => <pre style={{ whiteSpace: 'pre-wrap' }}>{source}</pre>;

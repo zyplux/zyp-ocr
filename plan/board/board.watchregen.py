@@ -32,13 +32,15 @@ Run modes:
 from __future__ import annotations
 
 import argparse
+import logging
 import re
-import sys
 from pathlib import Path
 from typing import NamedTuple
 
 import yaml
 from watchfiles import watch
+
+logger = logging.getLogger("board_watchregen")
 
 BOARD_DIR = Path(__file__).resolve().parent
 README = BOARD_DIR / "README.md"
@@ -49,7 +51,7 @@ COLUMNS: list[tuple[str, str]] = [
 ]
 COLUMN_NAMES = {col for col, _ in COLUMNS}
 COLUMNS_WITHOUT_META = {"done"}
-TICKET_BASE_URL = "https://github.com/realSergiy/totvibe-ocr/blob/main/plan/board/#TICKET#"
+TICKET_BASE_URL = "https://github.com/zyplux/zyp-ocr/blob/main/plan/board/#TICKET#"
 VALID_PRIORITIES = {"Very High", "High", "Low", "Very Low"}
 PREFIX_RE = re.compile(r"^(\d+)[-_]")
 PREFIX_WIDTH = 3
@@ -102,10 +104,7 @@ def parse_task(path: Path, column: str) -> Task:
         priority = str(priority)
         if priority not in VALID_PRIORITIES:
             allowed = ", ".join(sorted(VALID_PRIORITIES))
-            print(
-                f"warn: {path.name}: priority {priority!r} not one of {{{allowed}}}; dropping",
-                file=sys.stderr,
-            )
+            logger.warning("warn: %s: priority %r not one of {%s}; dropping", path.name, priority, allowed)
             priority = None
 
     return Task(
@@ -145,10 +144,7 @@ def task_sort_key(path: Path) -> tuple[int, str]:
 
 def collect_tasks() -> dict[str, list[Task]]:
     return {
-        column: [
-            parse_task(f, column)
-            for f in sorted((BOARD_DIR / column).glob("*.md"), key=task_sort_key)
-        ]
+        column: [parse_task(f, column) for f in sorted((BOARD_DIR / column).glob("*.md"), key=task_sort_key)]
         for column, _ in COLUMNS
     }
 
@@ -177,10 +173,8 @@ def render_readme(by_column: dict[str, list[Task]]) -> str:
     ]
     for column, label in COLUMNS:
         lines.append(f"  {label}")
-        for task in by_column.get(column, []):
-            lines.append(f"    [{task.title}]{render_metadata(task, column)}")
-    lines.append("```")
-    lines.append("")
+        lines.extend(f"    [{task.title}]{render_metadata(task, column)}" for task in by_column.get(column, []))
+    lines.extend(("```", ""))
     return "\n".join(lines)
 
 
@@ -195,10 +189,10 @@ def write_readme() -> bool:
 def refresh() -> bool:
     changed = False
     for old, new in assign_prefixes():
-        print(f"renamed {old.name} -> {new.name}")
+        logger.info("renamed %s -> %s", old.name, new.name)
         changed = True
     if write_readme():
-        print(f"wrote {README}")
+        logger.info("wrote %s", README)
         changed = True
     return changed
 
@@ -224,13 +218,14 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     refresh()
 
     if not args.watch:
         return
 
     watch_dirs = [str(BOARD_DIR / col) for col, _ in COLUMNS]
-    print(f"watching: {', '.join(watch_dirs)}", flush=True)
+    logger.info("watching: %s", ", ".join(watch_dirs))
     for changes in watch(*watch_dirs):
         if not any(relevant_change(path) for _event, path in changes):
             continue

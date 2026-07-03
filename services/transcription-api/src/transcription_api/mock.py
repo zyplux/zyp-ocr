@@ -9,6 +9,10 @@ from __future__ import annotations
 import asyncio
 import os
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, BackgroundTasks, FastAPI
 from ulid import ULID
@@ -70,12 +74,12 @@ def make_router() -> APIRouter:
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI):
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     yield
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="totvibe-ocr transcription-api (mock)", lifespan=lifespan)
+    app = FastAPI(title="zyp-ocr transcription-api (mock)", lifespan=lifespan)
     app.include_router(make_router())
 
     @app.get("/healthz", response_model=HealthCheck)

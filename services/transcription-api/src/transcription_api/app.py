@@ -4,6 +4,10 @@ import asyncio
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 from fastapi import FastAPI
 
@@ -19,7 +23,7 @@ def _ensure_state_dir() -> Path:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     state_dir = await asyncio.to_thread(_ensure_state_dir)
     db = await open_db(str(state_dir / "transcription.sqlite"))
     app.state.db = db
@@ -30,7 +34,7 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="totvibe-ocr transcription-api", lifespan=lifespan)
+    app = FastAPI(title="zyp-ocr transcription-api", lifespan=lifespan)
     app.include_router(router)
 
     @app.get("/healthz", response_model=HealthCheck)

@@ -1,8 +1,8 @@
-import { totvibe } from '@totvibe/eslint-config';
+import { zyplux } from '@zyplux/eslint-config';
 import { defineConfig } from 'eslint/config';
 
 export default defineConfig(
-  ...totvibe({
+  ...zyplux({
     ignores: ['**/.tsbuild/**'],
     react: true,
     tanstack: true,

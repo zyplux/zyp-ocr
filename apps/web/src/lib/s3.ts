@@ -4,23 +4,27 @@ import { BLOB_CACHE_CONTROL, MARKDOWN_CONTENT_TYPE, PDF_CONTENT_TYPE } from '~/c
 
 type Blob = { contentType: string; key: string };
 
-const client = (env: Env) =>
+const HTTP_OK = 200;
+const HTTP_PARTIAL_CONTENT = 206;
+const HTTP_NOT_FOUND = 404;
+
+const client = ({ S3_ACCESS_KEY_ID: accessKeyId, S3_REGION: region, S3_SECRET_ACCESS_KEY: secretAccessKey }: Env) =>
   new AwsClient({
-    accessKeyId: env.S3_ACCESS_KEY_ID,
-    region: env.S3_REGION,
-    secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+    accessKeyId,
+    region,
+    secretAccessKey,
     service: 's3',
   });
 
-const objectUrl = (endpoint: string, env: Env, key: string) => `${endpoint}/${env.S3_BUCKET}/${key}`;
+const objectUrl = (endpoint: string, { S3_BUCKET: bucket }: Env, key: string) => `${endpoint}/${bucket}/${key}`;
 
-const fetchBlob = async (env: Env, b: Blob) => {
-  const res = await client(env).fetch(objectUrl(env.S3_ENDPOINT, env, b.key));
-  if (res.status === 404) return new Response('not found', { status: 404 });
-  if (!res.ok) throw new Error(`GET ${b.key}: ${res.status}`);
+const fetchBlob = async (env: Env, { contentType, key }: Blob) => {
+  const res = await client(env).fetch(objectUrl(env.S3_ENDPOINT, env, key));
+  if (res.status === HTTP_NOT_FOUND) return new Response('not found', { status: HTTP_NOT_FOUND });
+  if (!res.ok) throw new Error(`GET ${key}: ${res.status}`);
   return new Response(res.body, {
-    headers: { 'cache-control': BLOB_CACHE_CONTROL, 'content-type': b.contentType },
-    status: 200,
+    headers: { 'cache-control': BLOB_CACHE_CONTROL, 'content-type': contentType },
+    status: HTTP_OK,
   });
 };
 
@@ -28,20 +32,20 @@ const fetchHead = async (env: Env, key: string, lastByte: number) => {
   const res = await client(env).fetch(objectUrl(env.S3_ENDPOINT, env, key), {
     headers: { range: `bytes=0-${lastByte}` },
   });
-  if (res.status !== 200 && res.status !== 206) throw new Error(`GET ${key}: ${res.status}`);
+  if (res.status !== HTTP_OK && res.status !== HTTP_PARTIAL_CONTENT) throw new Error(`GET ${key}: ${res.status}`);
   return new Uint8Array(await res.arrayBuffer());
 };
 
 const headBlob = async (env: Env, key: string) => {
   const res = await client(env).fetch(objectUrl(env.S3_ENDPOINT, env, key), { method: 'HEAD' });
-  if (res.status === 404) return;
+  if (res.status === HTTP_NOT_FOUND) return;
   if (!res.ok) throw new Error(`HEAD ${key}: ${res.status}`);
-  return { sizeBytes: Number.parseInt(res.headers.get('content-length') ?? '0', 10) };
+  return { sizeBytes: Number(res.headers.get('content-length') ?? '0') };
 };
 
 const deleteBlob = async (env: Env, key: string) => {
   const res = await client(env).fetch(objectUrl(env.S3_ENDPOINT, env, key), { method: 'DELETE' });
-  if (!res.ok && res.status !== 404) throw new Error(`DELETE ${key}: ${res.status}`);
+  if (!res.ok && res.status !== HTTP_NOT_FOUND) throw new Error(`DELETE ${key}: ${res.status}`);
 };
 
 const signPutUrl = async (env: Env, key: string, ttlSeconds: number) => {

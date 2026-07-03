@@ -18,62 +18,66 @@ loads schemas.py by path so we don't need `transcription-api` installed.
 from __future__ import annotations
 
 import importlib.util
+import logging
 import re
 import sys
-from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from types import ModuleType
+
+logger = logging.getLogger("export_schemas")
 
 JS_IDENT = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
-JS_RESERVED = frozenset(
-    {
-        "break",
-        "case",
-        "catch",
-        "class",
-        "const",
-        "continue",
-        "debugger",
-        "default",
-        "delete",
-        "do",
-        "else",
-        "enum",
-        "export",
-        "extends",
-        "false",
-        "finally",
-        "for",
-        "function",
-        "if",
-        "import",
-        "in",
-        "instanceof",
-        "new",
-        "null",
-        "return",
-        "super",
-        "switch",
-        "this",
-        "throw",
-        "true",
-        "try",
-        "typeof",
-        "var",
-        "void",
-        "while",
-        "with",
-        "yield",
-        "let",
-        "static",
-        "implements",
-        "interface",
-        "package",
-        "private",
-        "protected",
-        "public",
-    }
-)
+JS_RESERVED = frozenset({
+    "break",
+    "case",
+    "catch",
+    "class",
+    "const",
+    "continue",
+    "debugger",
+    "default",
+    "delete",
+    "do",
+    "else",
+    "enum",
+    "export",
+    "extends",
+    "false",
+    "finally",
+    "for",
+    "function",
+    "if",
+    "import",
+    "in",
+    "instanceof",
+    "new",
+    "null",
+    "return",
+    "super",
+    "switch",
+    "this",
+    "throw",
+    "true",
+    "try",
+    "typeof",
+    "var",
+    "void",
+    "while",
+    "with",
+    "yield",
+    "let",
+    "static",
+    "implements",
+    "interface",
+    "package",
+    "private",
+    "protected",
+    "public",
+})
 
 
 def js_str(value: str) -> str:
@@ -100,13 +104,27 @@ EXPORTED = [
 ]
 
 
-def load_schemas_module():
+class SchemasModuleLoadError(RuntimeError):
+    def __init__(self) -> None:
+        super().__init__(f"failed to load {SCHEMAS_PY}")
+
+
+def load_schemas_module() -> ModuleType:
     spec = importlib.util.spec_from_file_location("transcription_schemas", SCHEMAS_PY)
     if spec is None or spec.loader is None:
-        raise RuntimeError(f"failed to load {SCHEMAS_PY}")
+        raise SchemasModuleLoadError
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+SCALAR_ZOD = {
+    "string": "z.string()",
+    "integer": "z.number().int()",
+    "number": "z.number()",
+    "boolean": "z.boolean()",
+    "null": "z.null()",
+}
 
 
 def json_schema_to_zod(schema: dict[str, Any]) -> str:
@@ -116,16 +134,8 @@ def json_schema_to_zod(schema: dict[str, Any]) -> str:
     if "enum" in schema:
         return "z.enum([" + ", ".join(js_str(v) for v in schema["enum"]) + "])"
     t = schema.get("type")
-    if t == "string":
-        return "z.string()"
-    if t == "integer":
-        return "z.number().int()"
-    if t == "number":
-        return "z.number()"
-    if t == "boolean":
-        return "z.boolean()"
-    if t == "null":
-        return "z.null()"
+    if t in SCALAR_ZOD:
+        return SCALAR_ZOD[t]
     if t == "object":
         return emit_object(schema)
     if t == "array":
@@ -146,13 +156,13 @@ def emit_object(schema: dict[str, Any]) -> str:
     return "z.object({\n" + "\n".join(parts) + "\n})"
 
 
-def emit_models(module) -> Iterator[str]:
+def emit_models(module: ModuleType) -> Iterator[str]:
     for name in EXPORTED:
         cls = getattr(module, name)
         schema = cls.model_json_schema()
         body = emit_object(schema)
-        yield f"export const {name} = {body};"
-        yield f"export type {name} = z.infer<typeof {name}>;"
+        yield f"export const {name}Schema = {body};"
+        yield f"export type {name} = z.infer<typeof {name}Schema>;"
         yield ""
 
 
@@ -167,9 +177,10 @@ def main() -> int:
     body = "\n".join(emit_models(module)).rstrip() + "\n"
     OUTPUT_TS.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT_TS.write_text(header + body, encoding="utf-8")
-    print(f"wrote {OUTPUT_TS.relative_to(ROOT)}")
+    logger.info("wrote %s", OUTPUT_TS.relative_to(ROOT))
     return 0
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     sys.exit(main())

@@ -3,13 +3,19 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import AsyncIterator
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from ulid import ULID
 
+from .ocr import run_ocr
 from .results import post_result
 from .schemas import TranscriptionResult, TranscriptionSubmission, TranscriptionSubmissionAck
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator, Callable
+
+    import aiosqlite
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -58,10 +64,8 @@ async def get_ocr_job(pipeline_id: str, request: Request) -> dict[str, str]:
     return {"pipeline_id": pipeline_id, "ocr_job_id": row[0], "status": row[1]}
 
 
-async def _run_ocr_job(submission: TranscriptionSubmission, pipeline_id: str, db) -> None:
+async def _run_ocr_job(submission: TranscriptionSubmission, pipeline_id: str, db: aiosqlite.Connection) -> None:
     try:
-        from .ocr import run_ocr  # imported lazily so --mock images can skip torch
-
         async for result in _ocr_with_fallback(run_ocr, submission):
             await post_result(submission.result_url, submission.result_token, result)
         await post_result(
@@ -98,7 +102,8 @@ async def _run_ocr_job(submission: TranscriptionSubmission, pipeline_id: str, db
 
 
 async def _ocr_with_fallback(
-    runner, submission: TranscriptionSubmission
+    runner: Callable[[str, str], AsyncIterator[TranscriptionResult]],
+    submission: TranscriptionSubmission,
 ) -> AsyncIterator[TranscriptionResult]:
     try:
         async for result in runner(submission.upload_key, submission.ocr_job_id):

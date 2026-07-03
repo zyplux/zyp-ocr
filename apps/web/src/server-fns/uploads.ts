@@ -3,11 +3,12 @@ import { env } from 'cloudflare:workers';
 import { ulid } from 'ulid';
 import * as z from 'zod';
 
-import { DEFAULT_USER_ID, MAX_PAGES, MAX_PDF_BYTES, MAX_PDF_MB } from '~/constants';
+import { BYTES_PER_MIB, DEFAULT_USER_ID, MAX_PAGES, MAX_PDF_BYTES, MAX_PDF_MB } from '~/constants';
 import { estimatePageCount } from '~/lib/pdf-pages';
 import { blob } from '~/lib/s3';
 
-const PDF_HEAD_BYTES = 1024 * 1024;
+const PDF_HEAD_BYTES = BYTES_PER_MIB;
+const PDF_MAGIC = '%PDF-';
 const PUT_TTL_SECONDS = 600;
 
 const ReserveSchema = z.object({ sizeBytes: z.number().int().positive().max(MAX_PDF_BYTES) });
@@ -27,14 +28,14 @@ export type ReserveUploadInput = {
 
 const userStub = () => env.USER_DO.get(env.USER_DO.idFromName(DEFAULT_USER_ID));
 
-const fail = async (ocrJobId: string, key: string, message: string, withDelete: boolean) => {
-  if (withDelete) await blob.delete(env, key);
+const fail = async (ocrJobId: string, key: string, message: string, shouldDeleteBlob: boolean) => {
+  if (shouldDeleteBlob) await blob.delete(env, key);
   await userStub().failUpload(ocrJobId, message);
   throw new Error(message);
 };
 
 export const reserveUpload = createServerFn({ method: 'POST' })
-  .inputValidator((d: unknown) => ReserveSchema.parse(d))
+  .validator((d: unknown) => ReserveSchema.parse(d))
   .handler(async ({ data }) => {
     const ocrJobId = ulid();
     const { key } = blob.upload(ocrJobId);
@@ -44,7 +45,7 @@ export const reserveUpload = createServerFn({ method: 'POST' })
   });
 
 export const confirmUpload = createServerFn({ method: 'POST' })
-  .inputValidator((d: unknown) => ConfirmSchema.parse(d))
+  .validator((d: unknown) => ConfirmSchema.parse(d))
   .handler(async ({ data }) => {
     const { key } = blob.upload(data.ocrJobId);
     const head = await blob.head(env, key);
@@ -53,7 +54,7 @@ export const confirmUpload = createServerFn({ method: 'POST' })
       return fail(data.ocrJobId, key, `file too large (max ${MAX_PDF_MB} MB)`, true);
     }
     const headBytes = await blob.fetchHead(env, key, PDF_HEAD_BYTES - 1);
-    if (!new TextDecoder('latin1').decode(headBytes.slice(0, 5)).startsWith('%PDF-')) {
+    if (!new TextDecoder('latin1').decode(headBytes.slice(0, PDF_MAGIC.length)).startsWith(PDF_MAGIC)) {
       return fail(data.ocrJobId, key, 'not a PDF', true);
     }
     const totalPages = estimatePageCount(headBytes);
