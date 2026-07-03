@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncGenerator
 
 from fastapi import APIRouter, BackgroundTasks, FastAPI
 from ulid import ULID
@@ -74,7 +74,7 @@ def make_router() -> APIRouter:
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
     yield
 
 

@@ -1,5 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignoreBinaries": ["uv"],
   "workspaces": {
     "apps/web": {
       "entry": ["src/router.tsx", "src/routes/**/*.{ts,tsx}", "src/contracts.ts", "worker-configuration.d.ts"],

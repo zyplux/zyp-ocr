@@ -21,7 +21,7 @@ lint = [
     "ruff>=0.15.20",
     "rumdl>=0.2.27",
     "vulture>=2.16",
-    "zyplux-cerberus>=0.7.0",
+    "zyplux-cerberus>=0.8.0",
 ]
 type = [
     "pyrefly>=1.1.1",

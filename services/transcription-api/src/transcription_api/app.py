@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncGenerator
 
 from fastapi import FastAPI
 
@@ -23,7 +23,7 @@ def _ensure_state_dir() -> Path:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     state_dir = await asyncio.to_thread(_ensure_state_dir)
     db = await open_db(str(state_dir / "transcription.sqlite"))
     app.state.db = db
