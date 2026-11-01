@@ -1,8 +1,15 @@
 name: org_gate
 
 on:
-  pull_request:
-    types: [opened, reopened, synchronize, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number to refresh
+        required: true
+        type: string
+      sha:
+        description: Pull request head commit to evaluate
+        type: string
 
 permissions:
   statuses: write
@@ -12,3 +19,6 @@ permissions:
 jobs:
   org_gate_base:
     uses: zyplux/.github/.github/workflows/org_gate_base.yml@main
+    with:
+      pr: ${{ inputs.pr || '' }}
+      sha: ${{ inputs.sha || '' }}
