@@ -18,7 +18,7 @@ just build          # produces apps/web/dist (wrangler dev consumes it)
 just up mock        # bring up the stack without GPU
 ```
 
-Open `http://localhost:8787`.
+Open `http://localhost:8787`. The local stack publishes its service ports on `127.0.0.1`.
 
 To exercise the data flow end-to-end:
 
