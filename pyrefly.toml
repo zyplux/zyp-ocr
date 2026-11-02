@@ -1,4 +1,8 @@
 preset = "strict"
 
-project-includes = ["services/transcription-api/src", "services/transcription-api/tests", "scripts"]
+project-includes = ["services/transcription-api/src", "services/transcription-api/tests", "scripts", "plan/board"]
 search-path = ["services/transcription-api/src"]
+
+min-severity = "warn"
+disable-project-excludes-heuristics = true
+use-ignore-files = false

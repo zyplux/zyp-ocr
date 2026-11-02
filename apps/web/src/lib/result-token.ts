@@ -41,13 +41,6 @@ const importKey = async (secret: string) =>
     'verify',
   ]);
 
-const timingSafeEqual = (a: Uint8Array, b: Uint8Array) => {
-  if (a.byteLength !== b.byteLength) return false;
-  let diff = 0;
-  for (let i = 0; i < a.byteLength; i++) diff |= (a[i] ?? 0) ^ (b[i] ?? 0);
-  return diff === 0;
-};
-
 export const signResultToken = async (claims: ResultClaims, secret: string) => {
   const headerBytes = encoder.encode(JSON.stringify(claims));
   const header = base64UrlEncode(headerBytes);
@@ -67,8 +60,7 @@ export const verifyResultToken = async (token: string, secrets: readonly string[
   for (const secret of secrets) {
     if (!secret) continue;
     const key = await importKey(secret);
-    const expected = new Uint8Array(await crypto.subtle.sign('HMAC', key, headerBytes));
-    if (timingSafeEqual(expected, sig)) {
+    if (await crypto.subtle.verify('HMAC', key, sig, headerBytes)) {
       isMatched = true;
       break;
     }

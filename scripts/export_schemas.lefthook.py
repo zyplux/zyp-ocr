@@ -97,11 +97,11 @@ SCHEMAS_PY = ROOT / "services/transcription-api/src/transcription_api/schemas.py
 OUTPUT_TS = ROOT / "apps/web/src/contracts.ts"
 
 # Order matters: emit referenced models before the ones that reference them.
-EXPORTED = [
-    "TranscriptionSubmission",
-    "TranscriptionSubmissionAck",
-    "TranscriptionResult",
-]
+EXPORTED = {
+    "TranscriptionSubmission": "schema-type",
+    "TranscriptionSubmissionAck": "schema",
+    "TranscriptionResult": "schema",
+}
 
 
 class SchemasModuleLoadError(RuntimeError):
@@ -157,12 +157,13 @@ def emit_object(schema: dict[str, Any]) -> str:
 
 
 def emit_models(module: ModuleType) -> Iterator[str]:
-    for name in EXPORTED:
+    for name, export in EXPORTED.items():
         cls = getattr(module, name)
         schema = cls.model_json_schema()
         body = emit_object(schema)
-        yield f"export const {name}Schema = {body};"
-        yield f"export type {name} = z.infer<typeof {name}Schema>;"
+        yield f"{'export ' if export != 'type' else ''}const {name}Schema = {body};"
+        if export != "schema":
+            yield f"export type {name} = z.infer<typeof {name}Schema>;"
         yield ""
 
 

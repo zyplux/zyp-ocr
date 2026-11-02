@@ -1,8 +1,8 @@
 import { createCollection } from '@tanstack/db';
 
-import type { MdPageRow, OcrJobRow, Snapshot } from '~/durable-objects/wire';
+import type { MdPageRow, OcrJobRow, Snapshot } from '~/durable-objects/contracts';
 
-import { DeltaSchema } from '~/durable-objects/wire';
+import { DeltaSchema } from '~/durable-objects/contracts';
 
 const STATE_STREAM_URL = '/api/_internal/state-stream';
 
@@ -37,12 +37,14 @@ const applySnapshot = ({ md_pages: mdPageRows, ocr_jobs: ocrJobRows }: Snapshot)
     subs.ocrJobs.commit();
     subs.ocrJobs.markReady();
   }
-  if (subs.mdPages) {
-    subs.mdPages.begin();
-    for (const row of mdPageRows) subs.mdPages.write({ type: 'insert', value: row });
-    subs.mdPages.commit();
-    subs.mdPages.markReady();
+  if (!subs.mdPages) {
+    return;
   }
+
+  subs.mdPages.begin();
+  for (const row of mdPageRows) subs.mdPages.write({ type: 'insert', value: row });
+  subs.mdPages.commit();
+  subs.mdPages.markReady();
 };
 
 const applyOcrJobUpsert = (row: OcrJobRow) => {
@@ -60,9 +62,7 @@ const applyMdPageUpsert = (row: MdPageRow) => {
 };
 
 const startSourceIfReady = () => {
-  if (transport.isStarted) return;
-  if (!subs.ocrJobs || !subs.mdPages) return;
-  if (typeof EventSource === 'undefined') return;
+  if (typeof EventSource === 'undefined' || transport.isStarted || !subs.ocrJobs || !subs.mdPages) return;
   transport.isStarted = true;
   transport.source = new EventSource(STATE_STREAM_URL, { withCredentials: true });
   transport.source.addEventListener('message', event => {
@@ -76,7 +76,9 @@ const startSourceIfReady = () => {
       else if (delta.op === 'ocr-job-upsert') applyOcrJobUpsert(delta.row);
       else applyMdPageUpsert(delta.row);
     } catch {
-      /* ignore malformed frames */
+      /*
+      ignore malformed frames
+      */
     }
   });
 };

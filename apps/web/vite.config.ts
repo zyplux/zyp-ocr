@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  plugins: [tanstackStart(), cloudflare({ viteEnvironment: { name: 'ssr' } })],
+  plugins: [tanstackStart({ router: { semicolons: true } }), cloudflare({ viteEnvironment: { name: 'ssr' } })],
   resolve: {
     alias: {
       '~': fileURLToPath(new URL('src', import.meta.url)),

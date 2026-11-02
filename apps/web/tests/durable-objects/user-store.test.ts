@@ -1,9 +1,10 @@
-import * as schema from '~/durable-objects/schema';
+import { describe, expect } from 'vitest';
 
-import { COMPLETE_AT, CREATED_AT, describe, expect, it, START_AT, UPLOAD_AT } from './_fixtures';
+import { it } from './_fixtures';
 
 const REPLAY_DELAY = 100;
-const LATER_AT = COMPLETE_AT + REPLAY_DELAY;
+const COMPLETED_AT = 1500;
+const LATER_AT = COMPLETED_AT + REPLAY_DELAY;
 const TWO_PAGES = 2;
 const THREE_PAGES = 3;
 const SEQUENTIAL_PAGE_NUMBERS = Array.from({ length: THREE_PAGES }, (_, i) => i + 1);
@@ -18,13 +19,12 @@ const OLDER_AT = 500;
 const NEWER_AT = 1500;
 const OLDER_CONFIRM_AT = 600;
 const NEWER_CONFIRM_AT = 1600;
-const MISSING_PAGE_NUMBER = 99;
 
 describe('UserStore.reserveJob', () => {
-  it('inserts a fresh job in awaiting_upload', ({ ocrJob, store }) => {
-    store.reserveJob({ ocrJobId: 'j1', sizeBytes: 12_345, uploadKey: 'u/j1' }, CREATED_AT);
+  it('inserts a fresh job in awaiting_upload', ({ createdAt, ocrJob, store }) => {
+    store.reserveJob({ ocrJobId: 'j1', sizeBytes: 12_345, uploadKey: 'u/j1' }, createdAt);
     expect(ocrJob('j1')).toMatchObject({
-      created_at: CREATED_AT,
+      created_at: createdAt,
       id: 'j1',
       size_bytes: 12_345,
       status: 'awaiting_upload',
@@ -33,18 +33,25 @@ describe('UserStore.reserveJob', () => {
     });
   });
 
-  it('rejects duplicate ids', ({ store }) => {
-    store.reserveJob({ ocrJobId: 'j1', sizeBytes: 0, uploadKey: 'u' }, CREATED_AT);
-    expect(() => store.reserveJob({ ocrJobId: 'j1', sizeBytes: 0, uploadKey: 'u' }, CREATED_AT)).toThrow(
+  it('rejects duplicate ids', ({ createdAt, store }) => {
+    store.reserveJob({ ocrJobId: 'j1', sizeBytes: 0, uploadKey: 'u' }, createdAt);
+    expect(() => store.reserveJob({ ocrJobId: 'j1', sizeBytes: 0, uploadKey: 'u' }, createdAt)).toThrow(
       /UNIQUE|PRIMARY KEY/,
     );
   });
 });
 
 describe('UserStore.confirmUpload', () => {
-  it('records size + page count and seeds md_pages with sequential numbers', ({ db, ocrJob, seedReserved, store }) => {
+  it('records size + page count and seeds md_pages with sequential numbers', ({
+    db,
+    ocrJob,
+    schema,
+    seedReserved,
+    store,
+    uploadAt,
+  }) => {
     seedReserved();
-    store.confirmUpload({ ocrJobId: 'j1', sizeBytes: 999, totalPages: 3 }, UPLOAD_AT);
+    store.confirmUpload({ ocrJobId: 'j1', sizeBytes: 999, totalPages: 3 }, uploadAt);
 
     expect(ocrJob()).toMatchObject({ size_bytes: 999, status: 'uploaded', total_pages: 3 });
     const pageNumbers = db
@@ -56,9 +63,9 @@ describe('UserStore.confirmUpload', () => {
     expect(pageNumbers).toEqual(SEQUENTIAL_PAGE_NUMBERS);
   });
 
-  it('skips page seeding when totalPages is 0', ({ db, seedReserved, store }) => {
+  it('skips page seeding when totalPages is 0', ({ db, schema, seedReserved, store, uploadAt }) => {
     seedReserved();
-    store.confirmUpload({ ocrJobId: 'j1', sizeBytes: 0, totalPages: 0 }, UPLOAD_AT);
+    store.confirmUpload({ ocrJobId: 'j1', sizeBytes: 0, totalPages: 0 }, uploadAt);
     expect(db.select().from(schema.mdPages).all()).toEqual([]);
   });
 });
@@ -67,89 +74,97 @@ describe('UserStore.setPipelineId', () => {
   it('writes pipeline_id and started_at atomically, advancing job to transcribing', ({
     ocrJob,
     seedReserved,
+    startAt,
     store,
+    uploadAt,
   }) => {
     seedReserved();
-    store.confirmUpload({ ocrJobId: 'j1', sizeBytes: 100, totalPages: 1 }, UPLOAD_AT);
-    store.setPipelineId('j1', 'pipe-1', START_AT);
+    store.confirmUpload({ ocrJobId: 'j1', sizeBytes: 100, totalPages: 1 }, uploadAt);
+    store.setPipelineId('j1', 'pipe-1', startAt);
 
-    expect(ocrJob()).toMatchObject({ pipeline_id: 'pipe-1', started_at: START_AT, status: 'transcribing' });
+    expect(ocrJob()).toMatchObject({ pipeline_id: 'pipe-1', started_at: startAt, status: 'transcribing' });
   });
 });
 
 describe('UserStore.failJob', () => {
-  it('marks the job failed with the given error', ({ ocrJob, seedReserved, store }) => {
+  it('marks the job failed with the given error', ({ completeAt, ocrJob, seedReserved, store }) => {
     seedReserved();
-    store.failJob('j1', 'boom', COMPLETE_AT);
-    expect(ocrJob()).toMatchObject({ completed_at: COMPLETE_AT, error: 'boom', status: 'failed' });
+    store.failJob('j1', 'boom', completeAt);
+    expect(ocrJob()).toMatchObject({ completed_at: completeAt, error: 'boom', status: 'failed' });
   });
 
-  it('overwrites prior terminal state unconditionally', ({ ocrJob, seedReserved, store }) => {
+  it('overwrites prior terminal state unconditionally', ({ completeAt, ocrJob, seedReserved, store }) => {
     seedReserved();
-    store.failJob('j1', 'first', COMPLETE_AT);
+    store.failJob('j1', 'first', completeAt);
     store.failJob('j1', 'second', LATER_AT);
     expect(ocrJob()).toMatchObject({ completed_at: LATER_AT, error: 'second' });
   });
 });
 
 describe('UserStore.completeJobIfRunning', () => {
-  it('completes a running job cleanly when error is undefined', ({ ocrJob, seedTranscribing, store }) => {
+  it('completes a running job cleanly when error is undefined', ({ completeAt, ocrJob, seedTranscribing, store }) => {
     seedTranscribing();
-    const completed = store.completeJobIfRunning('j1', undefined, COMPLETE_AT);
+    const completed = store.completeJobIfRunning('j1', undefined, completeAt);
 
     expect(completed).toMatchObject({
       op: 'ocr-job-upsert',
-      row: { completed_at: COMPLETE_AT, id: 'j1', status: 'done' },
+      row: { completed_at: completeAt, id: 'j1', status: 'done' },
     });
     expect(ocrJob().error).toBeNull();
   });
 
-  it('fails a running job when an error is provided', ({ ocrJob, seedTranscribing, store }) => {
+  it('fails a running job when an error is provided', ({ completeAt, ocrJob, seedTranscribing, store }) => {
     seedTranscribing();
-    const completed = store.completeJobIfRunning('j1', 'pages failed', COMPLETE_AT);
+    const completed = store.completeJobIfRunning('j1', 'pages failed', completeAt);
 
     expect(completed).toMatchObject({
       op: 'ocr-job-upsert',
-      row: { completed_at: COMPLETE_AT, error: 'pages failed', status: 'failed' },
+      row: { completed_at: completeAt, error: 'pages failed', status: 'failed' },
     });
-    expect(ocrJob()).toMatchObject({ completed_at: COMPLETE_AT, error: 'pages failed', status: 'failed' });
+    expect(ocrJob()).toMatchObject({ completed_at: completeAt, error: 'pages failed', status: 'failed' });
   });
 
   it('returns undefined and leaves state untouched when the job is already terminal', ({
+    completeAt,
     ocrJob,
     seedReserved,
     store,
   }) => {
     seedReserved();
-    store.failJob('j1', 'first', COMPLETE_AT);
+    store.failJob('j1', 'first', completeAt);
     const completed = store.completeJobIfRunning('j1', 'second', LATER_AT);
 
     expect(completed).toBeUndefined();
-    expect(ocrJob()).toMatchObject({ completed_at: COMPLETE_AT, error: 'first' });
+    expect(ocrJob()).toMatchObject({ completed_at: completeAt, error: 'first' });
   });
 });
 
 describe('UserStore.saveUpdate (page)', () => {
-  it('marks the page done with markdown_key and returns the broadcast row', ({ mdPage, seedTranscribing, store }) => {
+  it('marks the page done with markdown_key and returns the broadcast row', ({
+    completeAt,
+    mdPage,
+    seedTranscribing,
+    store,
+  }) => {
     seedTranscribing('j1', TWO_PAGES);
     const saved = store.saveUpdate(
       { markdownKey: 'md/j1/p1.md', ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'done' },
-      COMPLETE_AT,
+      completeAt,
     );
 
     expect(saved).toMatchObject({
       op: 'md-page-upsert',
-      row: { completed_at: COMPLETE_AT, markdown_key: 'md/j1/p1.md', page_number: 1, status: 'done' },
+      row: { completed_at: completeAt, markdown_key: 'md/j1/p1.md', page_number: 1, status: 'done' },
     });
     expect(mdPage('j1', 1).error).toBeNull();
     expect(mdPage('j1', TWO_PAGES)).toMatchObject({ status: 'transcribing' });
   });
 
-  it('marks the page failed when status=failed', ({ mdPage, seedTranscribing, store }) => {
+  it('marks the page failed when status=failed', ({ completeAt, mdPage, seedTranscribing, store }) => {
     seedTranscribing();
     const saved = store.saveUpdate(
       { error: 'OCR crashed', ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'failed' },
-      COMPLETE_AT,
+      completeAt,
     );
 
     expect(saved).toMatchObject({
@@ -160,20 +175,26 @@ describe('UserStore.saveUpdate (page)', () => {
   });
 
   it('defaults to "failed" when status=failed and no error message is supplied', ({
+    completeAt,
     mdPage,
     seedTranscribing,
     store,
   }) => {
     seedTranscribing();
-    store.saveUpdate({ ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'failed' }, COMPLETE_AT);
+    store.saveUpdate({ ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'failed' }, completeAt);
     expect(mdPage('j1', 1)).toMatchObject({ error: 'failed' });
   });
 
-  it('returns undefined on replay against an already finalized page', ({ mdPage, seedTranscribing, store }) => {
+  it('returns undefined on replay against an already finalized page', ({
+    completeAt,
+    mdPage,
+    seedTranscribing,
+    store,
+  }) => {
     seedTranscribing();
     const first = store.saveUpdate(
       { markdownKey: 'md/j1/p1.md', ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'done' },
-      COMPLETE_AT,
+      completeAt,
     );
     const replay = store.saveUpdate(
       { markdownKey: 'md/j1/p1-other.md', ocrJobId: 'j1', pageNumber: 1, resultId: 'r2', status: 'done' },
@@ -186,6 +207,7 @@ describe('UserStore.saveUpdate (page)', () => {
   });
 
   it('replaying a failed result is a no-op and leaves sibling pages untouched', ({
+    completeAt,
     mdPage,
     seedTranscribing,
     store,
@@ -193,23 +215,23 @@ describe('UserStore.saveUpdate (page)', () => {
     seedTranscribing('j1', THREE_PAGES);
     const first = store.saveUpdate(
       { error: 'boom', ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'failed' },
-      COMPLETE_AT,
+      completeAt,
     );
     const replay = store.saveUpdate(
       { error: 'boom', ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'failed' },
-      COMPLETE_AT + 1,
+      completeAt + 1,
     );
 
     expect(first).toMatchObject({ op: 'md-page-upsert' });
     expect(replay).toBeUndefined();
-    expect(mdPage('j1', 1)).toMatchObject({ completed_at: COMPLETE_AT, error: 'boom', status: 'failed' });
+    expect(mdPage('j1', 1)).toMatchObject({ completed_at: completeAt, error: 'boom', status: 'failed' });
     expect(mdPage('j1', TWO_PAGES)).toMatchObject({ status: 'transcribing' });
     expect(mdPage('j1', THREE_PAGES)).toMatchObject({ status: 'transcribing' });
   });
 
-  it('a failed page rejects a subsequent success replay', ({ mdPage, seedTranscribing, store }) => {
+  it('a failed page rejects a subsequent success replay', ({ completeAt, mdPage, seedTranscribing, store }) => {
     seedTranscribing();
-    store.saveUpdate({ error: 'boom', ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'failed' }, COMPLETE_AT);
+    store.saveUpdate({ error: 'boom', ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'failed' }, completeAt);
     const replay = store.saveUpdate(
       { markdownKey: 'md/j1/p1.md', ocrJobId: 'j1', pageNumber: 1, resultId: 'r2', status: 'done' },
       LATER_AT,
@@ -217,32 +239,33 @@ describe('UserStore.saveUpdate (page)', () => {
 
     expect(replay).toBeUndefined();
     const page = mdPage('j1', 1);
-    expect(page).toMatchObject({ completed_at: COMPLETE_AT, error: 'boom', status: 'failed' });
+    expect(page).toMatchObject({ completed_at: completeAt, error: 'boom', status: 'failed' });
     expect(page.markdown_key).toBeNull();
   });
 });
 
 describe('UserStore.saveUpdate (job)', () => {
   it('marks the job done when no pageNumber is given and returns the broadcast row', ({
+    completeAt,
     ocrJob,
     seedTranscribing,
     store,
   }) => {
     seedTranscribing();
-    const saved = store.saveUpdate({ ocrJobId: 'j1', resultId: 'r1', status: 'done' }, COMPLETE_AT);
+    const saved = store.saveUpdate({ ocrJobId: 'j1', resultId: 'r1', status: 'done' }, completeAt);
 
     expect(saved).toMatchObject({
       op: 'ocr-job-upsert',
-      row: { completed_at: COMPLETE_AT, id: 'j1', status: 'done' },
+      row: { completed_at: completeAt, id: 'j1', status: 'done' },
     });
     expect(ocrJob().error).toBeNull();
   });
 
-  it('marks the job failed when status=failed', ({ ocrJob, seedTranscribing, store }) => {
+  it('marks the job failed when status=failed', ({ completeAt, ocrJob, seedTranscribing, store }) => {
     seedTranscribing();
     const saved = store.saveUpdate(
       { error: 'pipeline aborted', ocrJobId: 'j1', resultId: 'r1', status: 'failed' },
-      COMPLETE_AT,
+      completeAt,
     );
 
     expect(saved).toMatchObject({
@@ -252,22 +275,27 @@ describe('UserStore.saveUpdate (job)', () => {
     expect(ocrJob()).toMatchObject({ error: 'pipeline aborted', status: 'failed' });
   });
 
-  it('returns undefined on replay against an already terminal job', ({ ocrJob, seedTranscribing, store }) => {
+  it('returns undefined on replay against an already terminal job', ({
+    completeAt,
+    ocrJob,
+    seedTranscribing,
+    store,
+  }) => {
     seedTranscribing();
-    store.saveUpdate({ ocrJobId: 'j1', resultId: 'r1', status: 'done' }, COMPLETE_AT);
+    store.saveUpdate({ ocrJobId: 'j1', resultId: 'r1', status: 'done' }, completeAt);
     const replay = store.saveUpdate({ ocrJobId: 'j1', resultId: 'r2', status: 'failed' }, LATER_AT);
 
     expect(replay).toBeUndefined();
     expect(ocrJob()).toMatchObject({ status: 'done' });
   });
 
-  it('a failed job rejects a subsequent success replay', ({ ocrJob, seedTranscribing, store }) => {
+  it('a failed job rejects a subsequent success replay', ({ completeAt, ocrJob, seedTranscribing, store }) => {
     seedTranscribing();
-    store.saveUpdate({ error: 'pipeline aborted', ocrJobId: 'j1', resultId: 'r1', status: 'failed' }, COMPLETE_AT);
+    store.saveUpdate({ error: 'pipeline aborted', ocrJobId: 'j1', resultId: 'r1', status: 'failed' }, completeAt);
     const replay = store.saveUpdate({ ocrJobId: 'j1', resultId: 'r2', status: 'done' }, LATER_AT);
 
     expect(replay).toBeUndefined();
-    expect(ocrJob()).toMatchObject({ completed_at: COMPLETE_AT, error: 'pipeline aborted', status: 'failed' });
+    expect(ocrJob()).toMatchObject({ completed_at: completeAt, error: 'pipeline aborted', status: 'failed' });
   });
 });
 
@@ -276,24 +304,29 @@ describe('UserStore.countInflight', () => {
     expect(await store.countInflight()).toBe(0);
   });
 
-  it('counts only jobs without completion and without error', async ({ seedReserved, seedTranscribing, store }) => {
+  it('counts only jobs without completion and without error', async ({
+    completeAt,
+    seedReserved,
+    seedTranscribing,
+    store,
+  }) => {
     seedReserved('running-1');
     seedReserved('running-2');
     seedTranscribing('done-1');
     seedReserved('failed-1');
-    store.completeJobIfRunning('done-1', undefined, COMPLETE_AT);
-    store.failJob('failed-1', 'boom', COMPLETE_AT);
+    store.completeJobIfRunning('done-1', undefined, completeAt);
+    store.failJob('failed-1', 'boom', completeAt);
 
     expect(await store.countInflight()).toBe(RUNNING_JOB_COUNT);
   });
 });
 
 describe('UserStore.countInflightPages', () => {
-  it('counts only in-flight pages for the given job', async ({ seedTranscribing, store }) => {
+  it('counts only in-flight pages for the given job', async ({ completeAt, seedTranscribing, store }) => {
     seedTranscribing('j1', THREE_PAGES);
     seedTranscribing('j2', TWO_PAGES);
-    store.saveUpdate({ markdownKey: 'k', ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'done' }, COMPLETE_AT);
-    store.saveUpdate({ error: 'x', ocrJobId: 'j1', pageNumber: 2, resultId: 'r2', status: 'failed' }, COMPLETE_AT);
+    store.saveUpdate({ markdownKey: 'k', ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'done' }, completeAt);
+    store.saveUpdate({ error: 'x', ocrJobId: 'j1', pageNumber: 2, resultId: 'r2', status: 'failed' }, completeAt);
 
     expect(await store.countInflightPages('j1')).toBe(1);
     expect(await store.countInflightPages('j2')).toBe(TWO_PAGES);
@@ -324,18 +357,18 @@ describe('UserStore.findStaleJobs', () => {
 });
 
 describe('UserStore.hasFailedPage', () => {
-  it('returns true once any page is failed', async ({ seedTranscribing, store }) => {
+  it('returns true once any page is failed', async ({ completeAt, seedTranscribing, store }) => {
     seedTranscribing('j1', TWO_PAGES);
     expect(await store.hasFailedPage('j1')).toBe(false);
 
-    store.saveUpdate({ error: 'x', ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'failed' }, COMPLETE_AT);
+    store.saveUpdate({ error: 'x', ocrJobId: 'j1', pageNumber: 1, resultId: 'r1', status: 'failed' }, completeAt);
     expect(await store.hasFailedPage('j1')).toBe(true);
   });
 
-  it('ignores pages on other jobs', async ({ seedTranscribing, store }) => {
+  it('ignores pages on other jobs', async ({ completeAt, seedTranscribing, store }) => {
     seedTranscribing('j1', 1);
     seedTranscribing('j2', 1);
-    store.saveUpdate({ error: 'x', ocrJobId: 'j2', pageNumber: 1, resultId: 'r1', status: 'failed' }, COMPLETE_AT);
+    store.saveUpdate({ error: 'x', ocrJobId: 'j2', pageNumber: 1, resultId: 'r1', status: 'failed' }, completeAt);
 
     expect(await store.hasFailedPage('j1')).toBe(false);
     expect(await store.hasFailedPage('j2')).toBe(true);
@@ -372,16 +405,7 @@ describe('UserStore.requireOcrJob', () => {
   });
 });
 
-describe('UserStore.requireMdPage', () => {
-  it('returns the page when present', async ({ seedReserved, store }) => {
-    seedReserved();
-    store.confirmUpload({ ocrJobId: 'j1', sizeBytes: 0, totalPages: 1 }, UPLOAD_AT);
-    const page = await store.requireMdPage('j1', 1);
-    expect(page).toMatchObject({ ocr_job_id: 'j1', page_number: 1, status: 'transcribing' });
-  });
-
-  it('throws when the page is missing', async ({ seedReserved, store }) => {
-    seedReserved();
-    await expect(store.requireMdPage('j1', MISSING_PAGE_NUMBER)).rejects.toThrow(/md page not found: j1\/99/);
-  });
+it('ignores confirmations and pipeline updates for a missing job', ({ store }) => {
+  expect(store.confirmUpload({ ocrJobId: 'missing', sizeBytes: 1, totalPages: 1 }, 1)).toEqual([]);
+  expect(store.setPipelineId('missing', 'pipe-1', 1)).toBeUndefined();
 });

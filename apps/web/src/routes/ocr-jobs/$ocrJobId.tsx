@@ -1,8 +1,8 @@
-import { useLiveQuery } from '@tanstack/react-db';
+import { eq, useLiveQuery } from '@tanstack/react-db';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
-import type { MdPageRow } from '~/durable-objects/wire';
+import type { MdPageRow } from '~/durable-objects/contracts';
 
 import { Markdown } from '~/client/markdown';
 import { mdPagesCollection, ocrJobsCollection } from '~/client/ocr-jobs-collection';
@@ -12,14 +12,14 @@ const OcrJobPage = () => {
   const params: { ocrJobId: string } = Route.useParams();
   const { ocrJobId } = params;
   const { data: ocrJobMatches } = useLiveQuery(
-    q => q.from({ j: ocrJobsCollection }).where(({ j }) => j.id === ocrJobId),
+    q => q.from({ j: ocrJobsCollection }).where(({ j }) => eq(j.id, ocrJobId)),
     [ocrJobId],
   );
   const { data: mdPages } = useLiveQuery(
     q =>
       q
         .from({ p: mdPagesCollection })
-        .where(({ p }) => p.ocr_job_id === ocrJobId)
+        .where(({ p }) => eq(p.ocr_job_id, ocrJobId))
         .orderBy(({ p }) => p.page_number),
     [ocrJobId],
   );
@@ -69,7 +69,9 @@ const MdPageBlock = ({ mdPage, ocrJobId }: MdPageBlockProps) => {
         const text = await r.text();
         if (!isCancelled) setMarkdown(text);
       } catch {
-        /* ignore fetch failures; rerender will retry on dep change */
+        /*
+        ignore fetch failures; rerender will retry on dep change
+        */
       }
     };
     void load();

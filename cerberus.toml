@@ -1,0 +1,5 @@
+[source_oracle.types.prod]
+roots = ["apps/*", "packages/*", "services/*"]
+
+[source_oracle.types.infra]
+roots = ["infra", "scripts", ".github", "plan/board"]

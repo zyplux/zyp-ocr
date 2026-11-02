@@ -4,7 +4,7 @@ Scanned PDFs in, markdown out, page-by-page via a TanStack DB live collection ba
 
 ## Prerequisites
 
-- Bun 1.3+ (`curl -fsSL https://bun.sh/install | bash`)
+- Node.js 26 and pnpm 12 (`package.json`)
 - Python 3.14 (`.python-version`)
 - uv 0.11+
 - podman + podman-compose
@@ -13,12 +13,12 @@ Scanned PDFs in, markdown out, page-by-page via a TanStack DB live collection ba
 ## Quick start
 
 ```bash
-just install        # bun install + uv sync + git hooks
+just install        # pnpm install + uv sync + git hooks
 just build          # produces apps/web/dist (wrangler dev consumes it)
 just up mock        # bring up the stack without GPU
 ```
 
-Open `http://localhost:8787`.
+Open `http://localhost:8787`. The local stack publishes its service ports on `127.0.0.1`.
 
 To exercise the data flow end-to-end:
 
@@ -35,16 +35,12 @@ just down        # stop the stack
 just build       # rebuild apps/web/dist
 just test        # vitest + pytest
 just lint        # eslint + ruff + rumdl
-just u -i        # interactive upgrade of catalog deps via ncu
+just u -i        # interactive workspace dependency upgrade
 ```
 
 ## First-run notes
 
-- TanStack Start generates `apps/web/src/routeTree.gen.ts` on first `bun run dev` /
-  `bun run build`. Until that file exists, `bun run typecheck` reports two errors on the
-  `createFileRoute(...)` calls — they go away after the first dev run.
-- Run `bun --filter @totvibe/web wrangler:types` after editing `wrangler.jsonc`
-  to refresh `worker-configuration.d.ts`.
+- Run `pnpm --filter @totvibe/web exec wrangler types` after editing `wrangler.jsonc` to refresh `worker-configuration.d.ts`.
 - `just install` also installs all git hooks (lefthook).
 - Drop a PEP 723 script anywhere in the repo with one of two suffixes and it's
   picked up automatically — no config edit needed:

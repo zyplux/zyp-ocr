@@ -45,7 +45,19 @@ export const DeltaSchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('snapshot'), snapshot: SnapshotSchema }),
 ]);
 
+export type ConfirmUploadInput = {
+  ocrJobId: string;
+  sizeBytes: number;
+  totalPages: number;
+};
 export type Delta = z.infer<typeof DeltaSchema>;
 export type MdPageRow = z.infer<typeof MdPageRowSchema>;
 export type OcrJobRow = z.infer<typeof OcrJobRowSchema>;
+
+export type ReserveUploadInput = {
+  ocrJobId: string;
+  sizeBytes: number;
+  uploadKey: string;
+};
+
 export type Snapshot = z.infer<typeof SnapshotSchema>;
