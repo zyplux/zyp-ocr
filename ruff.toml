@@ -12,7 +12,7 @@ ignore = [
     "CPY001", # the project carries no copyright-header convention
     "S404",   # subprocess is used only by repo tooling scripts, never by service code
     "S603",   # scripts build argv themselves with no shell — no injection surface
-    "S607",   # tooling (uv, just, bun) is intentionally invoked by name off PATH
+    "S607",   # tooling (uv, just, pnpm) is intentionally invoked by name off PATH
 ]
 
 [lint.per-file-ignores]
