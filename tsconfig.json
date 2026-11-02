@@ -1,9 +1,14 @@
 {
   "files": [],
   "references": [
-    { "path": "./tsconfig.tooling.json" },
-    { "path": "./apps/web/tsconfig.app.json" },
-    { "path": "./apps/web/tsconfig.bun.json" },
-    { "path": "./tests" }
+    {
+      "path": "./tsconfig.tooling.json"
+    },
+    {
+      "path": "./apps/web"
+    },
+    {
+      "path": "./apps/web/tsconfig.node.json"
+    }
   ]
 }

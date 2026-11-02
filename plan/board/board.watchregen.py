@@ -69,7 +69,7 @@ def numeric_prefix(name: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
-def split_frontmatter(text: str) -> tuple[dict, str]:
+def split_frontmatter(text: str) -> tuple[dict[str, object], str]:
     if not text.startswith("---\n"):
         return {}, text
     end = text.find("\n---\n", 4)

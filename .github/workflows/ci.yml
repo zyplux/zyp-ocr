@@ -1,37 +1,40 @@
 name: ci
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review]
-  push:
-    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
 
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+permissions:
+  contents: read
 
 jobs:
   ci:
     name: ci
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    concurrency:
+      group: ci-${{ github.ref }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
-    container: ghcr.io/zyplux/ci:0.1.1
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-      - run: bun install --frozen-lockfile
-      - run: uv sync --locked --all-packages --all-groups
-      - run: bun run knip
+      - uses: zyplux/zyplux/apps/action-setup-pm@setup-pm-v1
+      - run: pnpm run knip
+      - run: pnpm run knip --config knip.prod.json
       - run: uv run --no-sync vulture
-      - run: bun run typecheck
+      - run: pnpm run typecheck
       - run: uv run --no-sync rumdl check
-      - run: bun run lint
-      - run: bunx prettier --check .
+      - run: uv run --no-sync rumdl fmt --check
+      - run: pnpm run lint
+      - run: pnpm exec prettier --check .
       - run: uv run --no-sync ruff check
       - run: uv run --no-sync ruff format --check
       - run: uv run --no-sync pyrefly check
-      - run: bun run test
+      - run: pnpm run test
       - run: uv run --no-sync pytest
       - run: uv run --no-sync cerberus
+        env:
+          GH_TOKEN: ${{ github.token }}

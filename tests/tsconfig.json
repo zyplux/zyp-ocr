@@ -1,4 +1,0 @@
-{
-  "extends": "@totvibe/tsconfig/bun.json",
-  "include": ["src"]
-}

@@ -4,10 +4,11 @@
   "private": true,
   "files": [
     "base.json",
-    "bun.json",
+    "node.json",
     "web.json"
   ],
-  "dependencies": {
+  "sideEffects": false,
+  "peerDependencies": {
     "react": "catalog:"
   }
 }

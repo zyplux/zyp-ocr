@@ -3,12 +3,16 @@ import { drizzle } from 'drizzle-orm/durable-sqlite';
 import { migrate } from 'drizzle-orm/durable-sqlite/migrator';
 import { ulid } from 'ulid';
 
-import type { Delta } from '~/durable-objects/wire';
+import type { Delta } from '~/durable-objects/contracts';
+import type { ConfirmUploadInput, ReserveUploadInput } from '~/durable-objects/contracts';
 import type { TranscriptionUpdate } from '~/server';
-import type { ConfirmUploadInput, ReserveUploadInput } from '~/server-fns/uploads';
 
 import { DEFAULT_RECONCILE_TIMEOUT_SECONDS, DEFAULT_USER_ID, MAX_INFLIGHT_JOBS, TOKEN_TTL_SECONDS } from '~/constants';
-import { type TranscriptionSubmission, TranscriptionSubmissionAckSchema } from '~/contracts';
+import {
+  type TranscriptionSubmission,
+  TranscriptionSubmissionAckSchema,
+  TranscriptionSubmissionSchema,
+} from '~/contracts';
 import migrations from '~/durable-objects/migrations';
 import * as schema from '~/durable-objects/schema';
 import { UserStore } from '~/durable-objects/user-store';
@@ -20,8 +24,7 @@ const PAGES_FAILED_REASON = 'one or more pages failed';
 const MILLISECONDS_PER_SECOND = 1000;
 
 const sseEncoder = new TextEncoder();
-const omitNulls = (_: string, value: unknown) => (value === null ? undefined : value);
-const formatSseEvent = (delta: Delta) => sseEncoder.encode(`data: ${JSON.stringify(delta, omitNulls)}\n\n`);
+const formatSseEvent = (delta: Delta) => sseEncoder.encode(`data: ${JSON.stringify(delta)}\n\n`);
 
 type SubscriberWriters = Map<string, WritableStreamDefaultWriter<Uint8Array>>;
 
@@ -73,7 +76,9 @@ export class UserDO extends DurableObject<Env> {
         try {
           await blob.delete(this.env, ocrJob.upload_key);
         } catch {
-          /* best-effort cleanup; failed delete should not block fail-marking */
+          /*
+          best-effort cleanup; failed delete should not block fail-marking
+          */
         }
       }
       const failed = this.store.failJob(ocrJob.id, isAwaitingUpload ? 'upload abandoned' : 'timeout', now);
@@ -102,7 +107,7 @@ export class UserDO extends DurableObject<Env> {
         };
         try {
           const res = await fetch(`${this.env.TRANSCRIPTION_BASE}/submit`, {
-            body: JSON.stringify(payload),
+            body: JSON.stringify(TranscriptionSubmissionSchema.parse(payload)),
             headers: { 'content-type': 'application/json' },
             method: 'POST',
           });
@@ -172,16 +177,7 @@ export class UserDO extends DurableObject<Env> {
     const writer = stream.writable.getWriter();
     this.subscribers.set(id, writer);
     const snap = await this.store.readSnapshot();
-    try {
-      await writer.write(formatSseEvent({ op: 'snapshot', snapshot: snap }));
-    } catch {
-      this.subscribers.delete(id);
-      try {
-        await writer.close();
-      } catch {
-        /* noop */
-      }
-    }
+    void writeToSubscriber(this.subscribers, id, formatSseEvent({ op: 'snapshot', snapshot: snap }));
     return { id, stream: stream.readable };
   }
 
@@ -192,7 +188,9 @@ export class UserDO extends DurableObject<Env> {
     try {
       void writer.close();
     } catch {
-      /* noop */
+      /*
+      noop
+      */
     }
   }
 }

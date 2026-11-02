@@ -5,12 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "build": "vite build",
+    "build": "vite build && prettier --write src/routeTree.gen.ts",
     "deploy": "vite build && wrangler deploy",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
-    "test": "bun --bun vitest run --config vitest.config.ts",
-    "test:watch": "bun --bun vitest --config vitest.config.ts",
+    "test": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
     "wrangler:types": "wrangler types"
   },
   "dependencies": {
@@ -34,12 +34,17 @@
     "@testing-library/react": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "bun-types": "catalog:",
     "drizzle-kit": "catalog:",
     "jsdom": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",
-    "wrangler": "catalog:"
+    "wrangler": "catalog:",
+    "@types/node": "catalog:",
+    "@cloudflare/vitest-plugin": "catalog:",
+    "prettier": "catalog:"
+  },
+  "exports": {
+    ".": "./src/router.tsx"
   }
 }

@@ -2,9 +2,9 @@ import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 
 import { and, count, desc, eq, lt, notInArray, sql } from 'drizzle-orm';
 
+import type { ConfirmUploadInput, ReserveUploadInput } from '~/durable-objects/contracts';
 import type { MdPageDbRow, OcrJobDbRow } from '~/durable-objects/schema';
 import type { TranscriptionUpdate } from '~/server';
-import type { ConfirmUploadInput, ReserveUploadInput } from '~/server-fns/uploads';
 
 import * as schema from '~/durable-objects/schema';
 
@@ -16,13 +16,7 @@ export class UserStore<TRunResult = unknown> {
   constructor(private readonly db: StoreDb<TRunResult>) {}
 
   completeJobIfRunning(ocrJobId: string, error: string | undefined, completedAt: number) {
-    const [row] = this.db
-      .update(schema.ocrJobs)
-      .set({ completed_at: completedAt, error: error ?? sql`NULL` })
-      .where(and(eq(schema.ocrJobs.id, ocrJobId), eq(schema.ocrJobs.status, 'transcribing')))
-      .returning()
-      .all();
-    return row ? ({ op: 'ocr-job-upsert', row } as const satisfies SavedUpdate) : undefined;
+    return this.saveJobCompletion(this.db, ocrJobId, error, completedAt);
   }
 
   confirmUpload({ ocrJobId, sizeBytes, totalPages }: ConfirmUploadInput, now: number) {
@@ -102,16 +96,6 @@ export class UserStore<TRunResult = unknown> {
     return { md_pages: pageRows, ocr_jobs: ocrRows };
   }
 
-  async requireMdPage(ocrJobId: string, pageNumber: number) {
-    const [row] = await this.db
-      .select()
-      .from(schema.mdPages)
-      .where(and(eq(schema.mdPages.ocr_job_id, ocrJobId), eq(schema.mdPages.page_number, pageNumber)))
-      .limit(1);
-    if (!row) throw new Error(`md page not found: ${ocrJobId}/${pageNumber}`);
-    return row;
-  }
-
   async requireOcrJob(ocrJobId: string) {
     const [row] = await this.db.select().from(schema.ocrJobs).where(eq(schema.ocrJobs.id, ocrJobId)).limit(1);
     if (!row) throw new Error(`ocr job not found: ${ocrJobId}`);
@@ -133,14 +117,14 @@ export class UserStore<TRunResult = unknown> {
     return row ? ({ op: 'ocr-job-upsert', row } as const satisfies SavedUpdate) : undefined;
   }
 
-  saveUpdate({ error, markdownKey, ocrJobId, pageNumber, status }: TranscriptionUpdate, now: number) {
+  saveUpdate({ error = 'failed', markdownKey, ocrJobId, pageNumber, status }: TranscriptionUpdate, now: number) {
     return this.db.transaction(tx => {
       if (typeof pageNumber === 'number') {
         const [row] = tx
           .update(schema.mdPages)
           .set({
             completed_at: now,
-            error: status === 'failed' ? (error ?? 'failed') : sql`NULL`,
+            error: status === 'failed' ? error : sql`NULL`,
             markdown_key: markdownKey ?? sql`NULL`,
           })
           .where(
@@ -155,14 +139,7 @@ export class UserStore<TRunResult = unknown> {
         return row ? ({ op: 'md-page-upsert', row } as const satisfies SavedUpdate) : undefined;
       }
 
-      const finalError = status === 'failed' ? (error ?? 'failed') : sql`NULL`;
-      const [row] = tx
-        .update(schema.ocrJobs)
-        .set({ completed_at: now, error: finalError })
-        .where(and(eq(schema.ocrJobs.id, ocrJobId), eq(schema.ocrJobs.status, 'transcribing')))
-        .returning()
-        .all();
-      return row ? ({ op: 'ocr-job-upsert', row } as const satisfies SavedUpdate) : undefined;
+      return this.saveJobCompletion(tx, ocrJobId, status === 'failed' ? error : undefined, now);
     });
   }
 
@@ -171,6 +148,16 @@ export class UserStore<TRunResult = unknown> {
       .update(schema.ocrJobs)
       .set({ pipeline_id: pipelineId, started_at: startedAt })
       .where(eq(schema.ocrJobs.id, ocrJobId))
+      .returning()
+      .all();
+    return row ? ({ op: 'ocr-job-upsert', row } as const satisfies SavedUpdate) : undefined;
+  }
+
+  private saveJobCompletion(db: StoreDb<TRunResult>, ocrJobId: string, error: string | undefined, completedAt: number) {
+    const [row] = db
+      .update(schema.ocrJobs)
+      .set({ completed_at: completedAt, error: error ?? sql`NULL` })
+      .where(and(eq(schema.ocrJobs.id, ocrJobId), eq(schema.ocrJobs.status, 'transcribing')))
       .returning()
       .all();
     return row ? ({ op: 'ocr-job-upsert', row } as const satisfies SavedUpdate) : undefined;

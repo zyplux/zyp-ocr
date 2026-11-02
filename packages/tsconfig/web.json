@@ -3,6 +3,6 @@
   "extends": "./base.json",
   "compilerOptions": {
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "types": ["bun-types", "react", "react-dom"]
+    "types": ["node", "react", "react-dom"]
   }
 }

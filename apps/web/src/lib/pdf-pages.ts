@@ -16,6 +16,5 @@ export const estimatePageCount = (bytes: Uint8Array) => {
     const c = COUNT_RE.exec(view);
     if (c?.[1]) counts.push(Number(c[1]));
   }
-  if (counts.length === 0) return 1;
-  return Math.max(...counts);
+  return counts.length === 0 ? 1 : Math.max(...counts);
 };

@@ -29,7 +29,6 @@ coverage/
 .rumdl_cache/
 
 # Generated
-apps/web/src/routeTree.gen.ts
 apps/web/drizzle/migrations.js
 
 # Env

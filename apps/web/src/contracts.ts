@@ -15,7 +15,6 @@ export type TranscriptionSubmission = z.infer<typeof TranscriptionSubmissionSche
 export const TranscriptionSubmissionAckSchema = z.object({
   pipeline_id: z.string(),
 });
-export type TranscriptionSubmissionAck = z.infer<typeof TranscriptionSubmissionAckSchema>;
 
 export const TranscriptionResultSchema = z.object({
   error: z.union([z.string(), z.null()]).optional(),
@@ -25,4 +24,3 @@ export const TranscriptionResultSchema = z.object({
   result_id: z.string(),
   status: z.enum(['done', 'failed']),
 });
-export type TranscriptionResult = z.infer<typeof TranscriptionResultSchema>;
